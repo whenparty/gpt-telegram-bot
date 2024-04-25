@@ -5,17 +5,25 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "test": "bun test"
+    "test": "bun test --preload ./tests/preload.ts",
+    "db:generate-migration": "drizzle-kit generate:pg",
+    "db:apply-migrations": "bun db/utils/migrate.ts",
+    "db:ui": "drizzle-kit studio"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.6",
     "@elysiajs/stream": "^1.0.2",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.30.9",
     "elysia": "latest",
-    "grammy": "^1.22.4"
+    "grammy": "^1.22.4",
+    "pg": "^8.11.5"
   },
   "devDependencies": {
     "@grammyjs/types": "^3.6.2",
-    "bun-types": "latest"
+    "@types/pg": "^8.11.5",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.20.17"
   },
   "module": "src/index.js"
 }

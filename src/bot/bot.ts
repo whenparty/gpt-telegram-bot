@@ -1,13 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { Elysia } from "elysia";
 import { Bot } from "grammy";
-import { Update } from "@grammyjs/types";
+import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
   apiKey: process.env["ANTHROPIC_API_KEY"],
 });
 
-const bot = new Bot(process.env["TELEGRAM_BOT_API_TOKEN"]!, {
+export const bot = new Bot(process.env["TELEGRAM_BOT_API_TOKEN"]!, {
   botInfo: {
     id: 7018007874,
     is_bot: true,
@@ -21,8 +19,6 @@ const bot = new Bot(process.env["TELEGRAM_BOT_API_TOKEN"]!, {
 });
 
 bot.on("message:text", async (ctx) => {
-  console.log("here");
-
   const message = await ctx.reply("Thinking...");
   await ctx.replyWithChatAction("typing");
 
@@ -34,7 +30,7 @@ bot.on("message:text", async (ctx) => {
         answer.join("")
       );
     } catch (e) {}
-  }, 200);
+  }, 500);
 
   const answer: string[] = [];
   const messageInfo = anthropic.messages
@@ -48,36 +44,15 @@ bot.on("message:text", async (ctx) => {
     })
     .on("end", async () => {
       clearInterval(id);
-      bot.api.editMessageText(
-        message.chat.id,
-        message.message_id,
-        answer.join("") + " "
-      );
+      try {
+        bot.api.editMessageText(
+          message.chat.id,
+          message.message_id,
+          answer.join("") + " "
+        );
+      } catch (e) {}
       console.log("end", answer.join(""));
       const finalMessage = await messageInfo.finalMessage();
       console.log("finalMessage", finalMessage.usage);
     });
 });
-
-export const botController = new Elysia({ prefix: "/bot" })
-  .get("/setWebhook", async () => {
-    let res = undefined;
-    try {
-      res = await bot.api.setWebhook(
-        process.env["WEBHOOK_ORIGIN"] + "/bot/update"
-      );
-    } catch (e) {
-      console.log(e);
-    }
-    return res;
-  })
-  .post("/update", async (request) => {
-    try {
-      const update = request.body as Update;
-      await bot.handleUpdate(update);
-    } catch (e) {
-      console.error(e);
-    }
-
-    return new Response("ok", { status: 200 });
-  });
