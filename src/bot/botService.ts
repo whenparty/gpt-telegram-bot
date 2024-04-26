@@ -27,7 +27,7 @@ export class BotService {
             messages: dialog,
           },
           {
-            headers: { "anthropic-version": "2024-06-01" },
+            headers: { "anthropic-version": "2023-06-01" },
           }
         )
         .on("text", async (_, text) => {
