@@ -8,10 +8,12 @@ export class BotService {
 
   subscribeOnUpdate() {
     this.bot.on("message:text", async (ctx) => {
-      let messageId: number | undefined = undefined;
       let answer: string = "";
 
       const chatId = ctx.chat.id;
+
+      const message = await this.bot.api.sendMessage(chatId, "...");
+      const messageId = message.message_id;
 
       const typingChatActionIntervalId = await this.simulateTypingChatAction(
         chatId
@@ -32,11 +34,8 @@ export class BotService {
         )
         .on("text", async (_, text) => {
           if (text !== answer) {
-            messageId = await this.throttledReplyOrEditMessageText(
-              chatId,
-              messageId,
-              text
-            );
+            await this.throttledReplyOrEditMessageText(chatId, messageId, text);
+
             answer = text;
           }
         })
@@ -44,17 +43,9 @@ export class BotService {
           const text = message.content[0]?.text ?? "";
           const tokens =
             message.usage.input_tokens + message.usage.output_tokens;
-          if (text !== answer) {
-            messageId = await this.replyOrEditMessageText(
-              chatId,
-              messageId,
-              text
-            );
-            answer = text;
-          }
 
           clearInterval(typingChatActionIntervalId);
-          console.log("end", answer);
+          console.log("end", text);
           console.log("tokens", tokens);
         });
     });
@@ -62,6 +53,8 @@ export class BotService {
 
   async simulateTypingChatAction(chatId: number) {
     try {
+      await this.bot.api.sendChatAction(chatId, "typing");
+
       const intervalId = setInterval(async () => {
         await this.bot.api.sendChatAction(chatId, "typing");
       }, 6 * 1000);
@@ -74,23 +67,18 @@ export class BotService {
 
   throttledReplyOrEditMessageText = throttle(this.replyOrEditMessageText, 500, {
     leading: true,
-    trailing: false,
+    trailing: true,
   });
 
   async replyOrEditMessageText(
     chatId: number,
-    messageId: number | undefined,
+    messageId: number,
     text: string
   ) {
     try {
-      if (!messageId) {
-        const message = await this.bot.api.sendMessage(chatId, text);
-        return message.message_id;
-      }
       await this.bot.api.editMessageText(chatId, messageId, text);
     } catch (e) {
       console.log(e);
-      return messageId;
     }
   }
 }
