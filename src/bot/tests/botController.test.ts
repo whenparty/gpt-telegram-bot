@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, spyOn } from "bun:test";
 import { botController } from "../botController";
-import { bot } from "../bot";
+import { bot } from "../botService";
 
 const TEST_HOST = "http://localhost";
 

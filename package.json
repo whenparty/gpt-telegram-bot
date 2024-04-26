@@ -17,10 +17,12 @@
     "drizzle-orm": "^0.30.9",
     "elysia": "latest",
     "grammy": "^1.22.4",
+    "lodash.throttle": "^4.1.1",
     "pg": "^8.11.5"
   },
   "devDependencies": {
     "@grammyjs/types": "^3.6.2",
+    "@types/lodash.throttle": "^4.1.9",
     "@types/pg": "^8.11.5",
     "bun-types": "latest",
     "drizzle-kit": "^0.20.17"
