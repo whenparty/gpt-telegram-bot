@@ -1,10 +1,12 @@
 import { Elysia } from "elysia";
 import { Update } from "@grammyjs/types";
-import { BotService } from "./botService";
-import { anthropic } from "./anthropic";
-import { bot } from "./bot";
+import { BotService } from "../bot/botService";
+import { anthropic } from "../bot/anthropic";
+import { bot } from "../bot/bot";
 
 const botService = new BotService(bot, anthropic);
+botService.setMenu();
+botService.subscribeOnUpdate();
 
 export const botController = new Elysia({ prefix: "/bot" })
   .get("/setWebhook", async () => {
@@ -16,9 +18,14 @@ export const botController = new Elysia({ prefix: "/bot" })
       console.error(e);
     }
   })
+  .get("/setMenu", () => {
+    try {
+      botService.setMenu();
+    } catch (e) {
+      console.error(e);
+    }
+  })
   .post("/update", async (request) => {
-    botService.subscribeOnUpdate();
-
     const update = request.body as Update;
     try {
       await bot.handleUpdate(update);

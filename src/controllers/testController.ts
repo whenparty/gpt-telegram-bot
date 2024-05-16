@@ -1,14 +1,15 @@
 import { Elysia } from "elysia";
-import { users } from "../../db/schema/users";
-import { client } from "../../db/connection";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { connection } from "../../db/connection";
+import { IRepository, Repository } from "../../db/repository/repository";
 
-export const testController = (
-  database: NodePgDatabase<Record<string, never>>
-) =>
+export const testController = (repository: IRepository) =>
   new Elysia({ prefix: "/test" }).get("/", async () => {
-    await client.connect();
-    const allUsers = await database.select().from(users);
-    console.log(allUsers);
-    return allUsers;
+    //await connection.connect();
+
+    const user = await repository.getUser(1);
+    const userMessages = await repository.findUserMessages(user!);
+
+    console.log(userMessages);
+
+    return userMessages;
   });

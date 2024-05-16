@@ -1,0 +1,9 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Query Factory getUser: $1:123 $2:1 1`] = `"select "id", "external_identifier", "name", "ai_model" from "users" "userSchema" where "userSchema"."id" = $1 limit $2"`;
+
+exports[`Query Factory insertUser: $1:fake_id $2:fake $3:claude-3-haiku 1`] = `"insert into "users" ("id", "external_identifier", "name", "ai_model") values (default, $1, $2, $3) returning "id", "external_identifier", "name", "ai_model""`;
+
+exports[`Query Factory insertTokens: $1:100 $2:claude-3-haiku $3:1 $4:200 $5:claude-3-opus $6:1 1`] = `"insert into "tokens" ("id", "tokens", "ai_model", "user_id") values (default, $1, $2, $3), (default, $4, $5, $6)"`;
+
+exports[`Query Factory updateTokenAmount: $1:100 $2:1 1`] = `"update "tokens" set "tokens" = $1 where "tokens"."id" = $2"`;

@@ -1,11 +1,14 @@
 import { Elysia } from "elysia";
 import { testController } from "./controllers/testController";
-import { botController } from "./bot/botController";
-import { db } from "../db/connection";
+import { botController } from "./controllers/botController";
+import { db } from "db/connection";
+import { Repository } from "db/repository/repository";
+
+const repository = new Repository(db);
 
 const app = new Elysia()
   .use(botController)
-  .use(testController(db))
+  .use(testController(repository))
   .get("/", () => "Test")
   .listen(8787);
 

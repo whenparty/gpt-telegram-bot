@@ -2,12 +2,72 @@ import { Bot } from "grammy";
 import throttle from "lodash.throttle";
 import { Message } from "@anthropic-ai/sdk/resources";
 import Anthropic from "@anthropic-ai/sdk";
+import { Menu, MenuRange } from "@grammyjs/menu";
 
 export class BotService {
   constructor(readonly bot: Bot, readonly anthropic: Anthropic) {}
 
+  setMenu() {
+    this.bot.api.setMyCommands([
+      { command: "start", description: "Select model" },
+      { command: "help", description: "طلب مساعدة " },
+      { command: "list", description: "القائمة " },
+    ]);
+    // Creating a simple menu
+    const menu = new Menu("gtp-model")
+      .text("Claude 3 Haiku", (ctx) => {
+        ctx.reply("You selected *Claude 3 Haiku*\\!", {
+          parse_mode: "MarkdownV2",
+        });
+        ctx.menu.close();
+      })
+      .row()
+      .text("Claude 3 Opus", (ctx) => {
+        ctx.reply("You selected *Claude 3 Opus*\\!", {
+          parse_mode: "MarkdownV2",
+        });
+        ctx.menu.close();
+      });
+
+    const menu2 = new Menu("dynamic");
+    menu2
+      .url("About", "https://grammy.dev/plugins/menu")
+      .row()
+      .dynamic(async () => {
+        //const t = getUser();
+        // Generate a part of the menu dynamically!
+        const range = new MenuRange();
+        for (let i = 0; i < 3; i++) {
+          range.text(i.toString(), (ctx) => ctx.reply(`You chose ${i}`)).row();
+        }
+        return range;
+      })
+      .text("Cancel", (ctx) => ctx.deleteMessage());
+
+    // Make it interactive
+    this.bot.use(menu);
+
+    this.bot.command("start", async (ctx) => {
+      console.log("start");
+
+      // Send the menu:
+      await ctx.reply("Select the gtp model:", {
+        reply_markup: menu,
+      });
+    });
+    this.bot.on("msg::bot_command", (ctx) => {
+      console.log(
+        "command",
+        ctx.entities().filter((e) => e.type === "bot_command")[0]
+      );
+      ctx.react("❤‍🔥");
+    });
+  }
+
   subscribeOnUpdate() {
     this.bot.on("message:text", async (ctx) => {
+      console.log("message");
+
       let answer: string = "";
 
       const chatId = ctx.chat.id;
