@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Query Factory getUser: $1:123 $2:1 1`] = `"select "id", "external_identifier", "name", "ai_model" from "users" "userSchema" where "userSchema"."id" = $1 limit $2"`;
+exports[`Query Factory getUser: $1:123 $2:1 1`] = `"select "id", "external_identifier", "name", "ai_model" from "users" where "users"."id" = $1 limit $2"`;
 
 exports[`Query Factory insertUser: $1:fake_id $2:fake $3:claude-3-haiku 1`] = `"insert into "users" ("id", "external_identifier", "name", "ai_model") values (default, $1, $2, $3) returning "id", "external_identifier", "name", "ai_model""`;
 
