@@ -1,0 +1,39 @@
+name: Test and Merge to main branch
+
+on:
+  push:
+    branches: dev
+
+jobs:
+  run-tests:
+    name: Run tests on dev branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Run tests on bun
+        uses: oven-sh/setup-bun@v1
+      - run: bun install
+      - run: bun test
+
+  merge-branch:
+    needs: run-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge dev -> main
+        uses: devmasx/merge-branch@v1.4.0
+        with:
+          type: now
+          target_branch: main
+          github_token: ${{ github.token }}
+
+  deploy:
+    needs: merge-branch
+    uses: ./.github/workflows/deploy.yml
+    secrets:
+      POSTGRES_URL: ${{secrets.POSTGRES_URL}}
+      ANTHROPIC_API_KEY: ${{secrets.ANTHROPIC_API_KEY}}
+      TELEGRAM_BOT_API_TOKEN: ${{secrets.TELEGRAM_BOT_API_TOKEN}}
+      RENDER_SERVICE_ID: ${{secrets.RENDER_SERVICE_ID}}
+      RENDER_API_KEY: ${{secrets.RENDER_API_KEY}}
