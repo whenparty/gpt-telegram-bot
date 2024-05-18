@@ -7,7 +7,7 @@
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "bun --env-file=.env.local drizzle-kit migrate",
+    "db:migrate": "bun drizzle-kit migrate",
     "db:ui": "bun --env-file=.env.local drizzle-kit studio"
   },
   "dependencies": {
