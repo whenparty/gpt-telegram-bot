@@ -1,0 +1,19 @@
+name: Merge to main branch
+
+on:
+  push:
+    branches: dev
+
+jobs:
+  run-tests:
+    name: Run tests on dev branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Intall deps
+        run: bun install
+
+      - name: Run tests
+        run: bun test
