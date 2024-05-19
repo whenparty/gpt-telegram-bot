@@ -1,15 +1,11 @@
 import { Elysia } from "elysia";
-import { connection } from "../../db/connection";
-import { IRepository, Repository } from "../../db/repository/repository";
+import { setup } from "src/setup";
 
-export const testController = (repository: IRepository) =>
-  new Elysia({ prefix: "/test" }).get("/", async () => {
-    //await connection.connect();
-
-    const user = await repository.getUser(1);
+export const testController = new Elysia({ prefix: "/test" })
+  .use(setup)
+  .get("/", async ({ repository }) => {
+    const user = await repository.getUserWithTokens("1");
     const userMessages = await repository.findUserMessages(user!);
-
-    console.log(userMessages);
 
     return userMessages;
   });

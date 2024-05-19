@@ -6,16 +6,27 @@ import * as schema from "../schema";
 import { ExtractTablesWithRelations, InferSelectModel, eq } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
 import { AI_MODEL } from "./aiModels";
+import { PgRelationalQuery } from "drizzle-orm/pg-core/query-builders/query";
 
-export type User = InferSelectModel<(typeof schema)["users"]>;
-export type Token = InferSelectModel<(typeof schema)["tokens"]>;
+export type UserWithTokens = User & {
+  tokens: Token[];
+};
+
+export type User = InferSelectModel<typeof schema.users>;
+export type Token = InferSelectModel<typeof schema.tokens>;
 
 export class QueryFactory {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
-  getUser(db: NodePgDatabase<typeof schema>, id: number) {
+  getUserWithTokens(
+    db: NodePgDatabase<typeof schema>,
+    externalIdentifier: string
+  ): PgRelationalQuery<UserWithTokens | undefined> {
     return db.query.users.findFirst({
-      where: eq(schema.users.id, id),
+      with: {
+        tokens: true,
+      },
+      where: eq(schema.users.externalIdentifier, externalIdentifier),
     });
   }
 

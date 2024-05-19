@@ -1,70 +1,108 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import throttle from "lodash.throttle";
 import { Message } from "@anthropic-ai/sdk/resources";
 import Anthropic from "@anthropic-ai/sdk";
-import { Menu, MenuRange } from "@grammyjs/menu";
+import { IRepository, Token } from "db/repository/repository";
+import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
+
+const DEFAULT_TOKENS = [
+  {
+    aiModel: AI_MODEL.CLAUDE_3_HAIKU,
+    tokens: 1000,
+  },
+];
 
 export class BotService {
   constructor(readonly bot: Bot, readonly anthropic: Anthropic) {}
 
-  setMenu() {
+  setCommands() {
     this.bot.api.setMyCommands([
-      { command: "start", description: "Select model" },
-      { command: "help", description: "طلب مساعدة " },
-      { command: "list", description: "القائمة " },
+      { command: "selectmodel", description: "Select an AI model" },
+      { command: "newchat", description: "Start a new chat" },
     ]);
-    // Creating a simple menu
-    const menu = new Menu("gtp-model")
-      .text("Claude 3 Haiku", (ctx) => {
-        ctx.reply("You selected *Claude 3 Haiku*\\!", {
-          parse_mode: "MarkdownV2",
-        });
-        ctx.menu.close();
-      })
-      .row()
-      .text("Claude 3 Opus", (ctx) => {
-        ctx.reply("You selected *Claude 3 Opus*\\!", {
-          parse_mode: "MarkdownV2",
-        });
-        ctx.menu.close();
-      });
 
-    const menu2 = new Menu("dynamic");
-    menu2
-      .url("About", "https://grammy.dev/plugins/menu")
-      .row()
-      .dynamic(async () => {
-        //const t = getUser();
-        // Generate a part of the menu dynamically!
-        const range = new MenuRange();
-        for (let i = 0; i < 3; i++) {
-          range.text(i.toString(), (ctx) => ctx.reply(`You chose ${i}`)).row();
-        }
-        return range;
-      })
-      .text("Cancel", (ctx) => ctx.deleteMessage());
+    this.bot.api.setMyCommands(
+      [
+        { command: "selectmodel", description: "Выберите ИИ" },
+        { command: "newchat", description: "Начать новый чат" },
+      ],
+      { language_code: "ru" }
+    );
 
-    // Make it interactive
-    this.bot.use(menu);
+    // const selectAiModelMenu = new Menu("dynamic");
+    // selectAiModelMenu
+    //   .dynamic(async () => {
+    //     //const t = repository.getUser(ctx);
+    //     const range = new MenuRange();
+    //     const aiModels = Object.keys(AI_MODEL_API_VERSION) as AI_MODEL[];
+    //     aiModels.forEach((aiModel, i) => {
+    //       range
+    //         .text(aiModel, (ctx) => {
+    //           ctx.menu.close();
+    //           ctx.reply(`You chose ${aiModel}`);
+    //         })
+    //         .row();
+    //     });
 
-    this.bot.command("start", async (ctx) => {
-      console.log("start");
+    //     return range;
+    //   })
+    //   .text("Cancel", (ctx) => ctx.deleteMessage());
 
-      // Send the menu:
-      await ctx.reply("Select the gtp model:", {
-        reply_markup: menu,
-      });
-    });
-    this.bot.on("msg::bot_command", (ctx) => {
-      console.log(
-        "command",
-        ctx.entities().filter((e) => e.type === "bot_command")[0]
-      );
-      ctx.react("❤‍🔥");
-    });
+    // // Make it interactive
+    // this.bot.use(selectAiModelMenu);
   }
 
-  subscribeOnUpdate() {
+  subscribeOnUpdate(repository: IRepository) {
+    this.bot.command("start", async (ctx) => {
+      const { from } = ctx;
+      if (!from || from.is_bot) {
+        return;
+      }
+
+      let user = await repository.getUserWithTokens(from.id.toString());
+
+      if (!user) {
+        const tokens = DEFAULT_TOKENS;
+        const newUser = await repository.createUser(
+          {
+            externalIdentifier: from.id.toString(),
+            aiModel: AI_MODEL.CLAUDE_3_HAIKU,
+            name:
+              from.username ??
+              [from.first_name, from.last_name].filter(Boolean).join(" "),
+          },
+          DEFAULT_TOKENS
+        );
+
+        user = {
+          ...newUser,
+          tokens: tokens as Token[],
+        };
+      }
+
+      if (!user.tokens.length) {
+        await repository.createTokens(user.id, DEFAULT_TOKENS);
+      }
+
+      const inlineKeyboard = new InlineKeyboard();
+      user.tokens.forEach((token) => {
+        inlineKeyboard
+          .text(`${token.aiModel} / tokens: ${token.tokens}`, token.aiModel)
+          .row();
+      });
+      // Send the menu:
+      await ctx.reply("Select the gtp model:", {
+        reply_markup: inlineKeyboard,
+      });
+    });
+
+    this.bot.on("callback_query:data", async (ctx) => {
+      const selectedAiModel = ctx.callbackQuery.data as AI_MODEL;
+      await ctx.answerCallbackQuery({
+        text: `You chose ${selectedAiModel}`,
+      });
+    });
+
     this.bot.on("message:text", async (ctx) => {
       console.log("message");
 

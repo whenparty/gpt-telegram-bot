@@ -15,7 +15,7 @@ jobs:
       - name: Run tests on bun
         uses: oven-sh/setup-bun@v1
       - run: bun install
-      - run: bun test
+      - run: bun run test
 
   merge-branch:
     needs: run-tests

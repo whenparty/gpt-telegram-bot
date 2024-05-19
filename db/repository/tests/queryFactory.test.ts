@@ -7,8 +7,8 @@ describe("Query Factory", () => {
   const queries = new QueryFactory(db);
 
   it("getUser", () => {
-    const id = 123;
-    const { sql, params } = queries.getUser(db, id).toSQL();
+    const id = "user_id";
+    const { sql, params } = queries.getUserWithTokens(db, id).toSQL();
 
     const expectedParams = [id, 1];
     expect(params).toStrictEqual(expectedParams);
