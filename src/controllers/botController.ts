@@ -3,30 +3,41 @@ import { Update } from "@grammyjs/types";
 import { BotService } from "../bot/botService";
 import { anthropic } from "../bot/anthropic";
 import { bot } from "../bot/bot";
+import { setup } from "src/setup";
 
-const botService = new BotService(bot, anthropic);
-botService.setMenu();
-botService.subscribeOnUpdate();
+export const BOT_CONTROLLER_PREFIX = "/bot";
+export const enum BOT_CONTROLLER_ROUTE {
+  setWebhook = "/setWebhook",
+  setCommands = "/setCommands",
+  update = "/update",
+}
 
-export const botController = new Elysia({ prefix: "/bot" })
-  .get("/setWebhook", async () => {
+export const botController = new Elysia({ prefix: BOT_CONTROLLER_PREFIX })
+  .use(setup)
+  .decorate("service", () => {
+    const service = new BotService(bot, anthropic);
+    service.subscribeOnUpdate(setup.decorator.repository);
+    return service;
+  })
+  .get(BOT_CONTROLLER_ROUTE.setWebhook, async () => {
     try {
       return await bot.api.setWebhook(
-        process.env["WEBHOOK_ORIGIN"] + "/bot/update"
+        process.env["WEBHOOK_ORIGIN"] +
+          [BOT_CONTROLLER_PREFIX, BOT_CONTROLLER_ROUTE.update].join("")
       );
     } catch (e) {
       console.error(e);
     }
   })
-  .get("/setMenu", () => {
+  .get(BOT_CONTROLLER_ROUTE.setCommands, ({ service }) => {
     try {
-      botService.setMenu();
+      service().setCommands();
     } catch (e) {
       console.error(e);
     }
   })
-  .post("/update", async (request) => {
-    const update = request.body as Update;
+  .post(BOT_CONTROLLER_ROUTE.update, async ({ repository, body }) => {
+    const update = body as Update;
     try {
       await bot.handleUpdate(update);
     } catch (e) {
