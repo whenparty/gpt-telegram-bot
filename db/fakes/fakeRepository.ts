@@ -56,4 +56,18 @@ export const fakeRepository: IRepository = {
   > {
     throw new Error("Function not implemented.");
   },
+  switchToModel: function (
+    userId: number,
+    aiModel: AI_MODEL
+  ): Promise<boolean> {
+    throw new Error("Function not implemented.");
+  },
+  saveMessages: function (
+    userId: number,
+    aiModel: AI_MODEL,
+    messages: any,
+    tokensLeft: number
+  ): Promise<boolean> {
+    throw new Error("Function not implemented.");
+  },
 };

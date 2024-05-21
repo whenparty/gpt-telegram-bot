@@ -11,20 +11,23 @@ export const enum BOT_CONTROLLER_ROUTE {
   setCommands = "/setCommands",
   update = "/update",
 }
-
+const service = new BotService(bot, anthropic);
+service.subscribeOnUpdate(setup.decorator.repository);
 export const botController = new Elysia({ prefix: BOT_CONTROLLER_PREFIX })
   .use(setup)
   .decorate("service", () => {
-    const service = new BotService(bot, anthropic);
-    service.subscribeOnUpdate(setup.decorator.repository);
+    console.log("decorator");
+
     return service;
   })
   .get(BOT_CONTROLLER_ROUTE.setWebhook, async () => {
     try {
-      return await bot.api.setWebhook(
+      const webhookUrl =
         process.env["WEBHOOK_ORIGIN"] +
-          [BOT_CONTROLLER_PREFIX, BOT_CONTROLLER_ROUTE.update].join("")
-      );
+        [BOT_CONTROLLER_PREFIX, BOT_CONTROLLER_ROUTE.update].join("");
+
+      console.log("Webhook", webhookUrl);
+      return await bot.api.setWebhook(webhookUrl);
     } catch (e) {
       console.error(e);
     }
