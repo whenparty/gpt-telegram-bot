@@ -28,28 +28,6 @@ export class BotService {
       ],
       { language_code: "ru" }
     );
-
-    // const selectAiModelMenu = new Menu("dynamic");
-    // selectAiModelMenu
-    //   .dynamic(async () => {
-    //     //const t = repository.getUser(ctx);
-    //     const range = new MenuRange();
-    //     const aiModels = Object.keys(AI_MODEL_API_VERSION) as AI_MODEL[];
-    //     aiModels.forEach((aiModel, i) => {
-    //       range
-    //         .text(aiModel, (ctx) => {
-    //           ctx.menu.close();
-    //           ctx.reply(`You chose ${aiModel}`);
-    //         })
-    //         .row();
-    //     });
-
-    //     return range;
-    //   })
-    //   .text("Cancel", (ctx) => ctx.deleteMessage());
-
-    // // Make it interactive
-    // this.bot.use(selectAiModelMenu);
   }
 
   subscribeOnUpdate(repository: IRepository) {
@@ -59,7 +37,8 @@ export class BotService {
         return;
       }
 
-      let user = await repository.getUserWithTokens(from.id.toString());
+      const userId = from.id.toString();
+      let user = await repository.getUserWithTokens(userId);
 
       if (!user) {
         const tokens = DEFAULT_TOKENS;
@@ -67,9 +46,9 @@ export class BotService {
           {
             externalIdentifier: from.id.toString(),
             aiModel: AI_MODEL.CLAUDE_3_HAIKU,
-            name:
-              from.username ??
-              [from.first_name, from.last_name].filter(Boolean).join(" "),
+            name: [from.username, from.first_name, from.last_name]
+              .filter(Boolean)
+              .join(" "),
           },
           DEFAULT_TOKENS
         );
@@ -86,8 +65,9 @@ export class BotService {
 
       const inlineKeyboard = new InlineKeyboard();
       user.tokens.forEach((token) => {
+        const modelTokens = token.tokens < 0 ? "not limited" : token.tokens;
         inlineKeyboard
-          .text(`${token.aiModel} / tokens: ${token.tokens}`, token.aiModel)
+          .text(`${token.aiModel} / tokens: ${modelTokens}`, token.aiModel)
           .row();
       });
       // Send the menu:
@@ -98,17 +78,62 @@ export class BotService {
 
     this.bot.on("callback_query:data", async (ctx) => {
       const selectedAiModel = ctx.callbackQuery.data as AI_MODEL;
-      await ctx.answerCallbackQuery({
-        text: `You chose ${selectedAiModel}`,
-      });
+      const externalUserId = ctx.from.id.toString();
+      const user = await repository.getUserWithTokens(externalUserId);
+      if (!user) {
+        throw new Error(`There is no user with id: ${externalUserId}`);
+      }
+
+      if (user.aiModel === selectedAiModel) {
+        await ctx.editMessageText(
+          `The current model is already ${selectedAiModel}`,
+          {
+            reply_markup: undefined,
+          }
+        );
+        return;
+      }
+
+      const availableTokens = user.tokens.find(
+        (token) => token.aiModel === selectedAiModel
+      );
+      if (!availableTokens || availableTokens.tokens === 0) {
+        await ctx.answerCallbackQuery({
+          text: `Unfortunately you do not have tokens for ${selectedAiModel}. Please select another AI model.`,
+        });
+      }
+
+      await repository.switchToModel(user.id, selectedAiModel);
+
+      await ctx.editMessageText(
+        `Select the gtp model:\nYou chose ${selectedAiModel}`,
+        {
+          reply_markup: undefined,
+        }
+      );
     });
 
     this.bot.on("message:text", async (ctx) => {
-      console.log("message");
+      const chatId = ctx.chat.id;
+
+      const externalUserId = ctx.from.id.toString();
+      const user = await repository.getUserWithTokens(externalUserId);
+      if (!user) {
+        throw new Error(`There is no user with id: ${externalUserId}`);
+      }
+
+      const availableTokens = user.tokens.find(
+        (token) => token.aiModel === user.aiModel
+      );
+      if (!availableTokens || availableTokens.tokens === 0) {
+        await this.bot.api.sendMessage(
+          chatId,
+          `Unfortunately you do not have tokens for ${user.aiModel}`
+        );
+        return;
+      }
 
       let answer: string = "";
-
-      const chatId = ctx.chat.id;
 
       const message = await this.bot.api.sendMessage(chatId, "...");
       const messageId = message.message_id;
@@ -117,12 +142,17 @@ export class BotService {
         chatId
       );
 
-      const dialog = [{ role: "user" as const, content: ctx.message.text }];
+      const messages = await repository.findUserMessages(user.id);
+      const userMessage = { role: "user" as const, content: ctx.message.text };
+      const dialog = [
+        ...messages.map((m) => ({ role: m.role, content: m.text })),
+        userMessage,
+      ];
 
       this.anthropic.messages
         .stream(
           {
-            model: "claude-3-haiku-20240307",
+            model: user.aiModel,
             max_tokens: 1024,
             messages: dialog,
           },
@@ -139,12 +169,24 @@ export class BotService {
         })
         .on("finalMessage", async (message: Message) => {
           const text = message.content[0]?.text ?? "";
+          const assistantMessage = { role: message.role, text };
+          const savingMessages = [userMessage, assistantMessage];
           const tokens =
             message.usage.input_tokens + message.usage.output_tokens;
+          let tokensLeft = availableTokens.tokens - tokens;
+          if (tokensLeft < 0) {
+            tokensLeft = 0;
+          }
 
           clearInterval(typingChatActionIntervalId);
           console.log("end", text);
           console.log("tokens", tokens);
+          await repository.saveMessages(
+            user.id,
+            user.aiModel,
+            savingMessages,
+            tokensLeft
+          );
         });
     });
   }
