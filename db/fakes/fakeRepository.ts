@@ -70,4 +70,7 @@ export const fakeRepository: IRepository = {
   ): Promise<boolean> {
     throw new Error("Function not implemented.");
   },
+  softDeleteMessages: function (userId: number, date: Date): Promise<boolean> {
+    throw new Error("Function not implemented.");
+  },
 };

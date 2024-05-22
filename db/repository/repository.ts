@@ -1,4 +1,4 @@
-import { InferSelectModel, and, asc, eq, ne } from "drizzle-orm";
+import { InferSelectModel, and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { users } from "../schema/users";
 import { tokens } from "../schema/tokens";
@@ -33,6 +33,7 @@ export interface IRepository {
     messages: any,
     tokensLeft: number
   ): Promise<boolean>;
+  softDeleteMessages(userId: number, date: Date): Promise<boolean>;
 }
 export class Repository implements IRepository {
   private queries: QueryFactory;
@@ -134,26 +135,28 @@ export class Repository implements IRepository {
   }
 
   async switchToModel(userId: number, aiModel: AI_MODEL) {
-    return this.db.transaction(async (tx) => {
-      try {
-        // set ai model
-        tx.update(schema.users)
-          .set({
-            aiModel,
-          })
-          .where(eq(schema.users.id, userId));
+    //return this.db.transaction(async (tx) => {
+    try {
+      // set ai model
+      await this.db
+        .update(schema.users)
+        .set({
+          aiModel,
+        })
+        .where(eq(schema.users.id, userId));
 
-        // soft delete old messages
-        tx.update(schema.messages)
-          .set({
-            deleted: true,
-          })
-          .where(eq(schema.users.id, userId));
-        return true;
-      } catch (error) {
-        return false;
-      }
-    });
+      // soft delete old messages
+      await this.db
+        .update(schema.messages)
+        .set({
+          deleted: true,
+        })
+        .where(eq(schema.messages.id, userId));
+      return true;
+    } catch (error) {
+      return false;
+    }
+    //  });
   }
 
   //async addMessage(userId: number, text: string) {}
@@ -163,34 +166,72 @@ export class Repository implements IRepository {
     messages: Pick<Message, "role" | "text">[],
     tokens: number
   ) {
-    return this.db.transaction(async (tx) => {
-      try {
-        tx.insert(schema.messages).values(
-          messages.map((m) => ({
-            userId,
-            aiModel,
-            role: m.role,
-            text: m.text,
-          }))
+    //return this.db.transaction(async (tx) => {
+    try {
+      const t = await this.db.insert(schema.messages).values(
+        messages.map((m) => ({
+          userId,
+          aiModel,
+          role: m.role,
+          text: m.text,
+        }))
+      );
+
+      await this.db
+        .update(schema.tokens)
+        .set({
+          tokens: tokens,
+        })
+        .where(
+          and(
+            eq(schema.tokens.userId, userId),
+            eq(schema.tokens.aiModel, aiModel)
+          )
         );
 
-        tx.update(schema.tokens)
-          .set({
-            tokens: tokens,
-          })
-          .where(
-            and(
-              eq(schema.tokens.userId, userId),
-              eq(schema.tokens.aiModel, aiModel)
-            )
-          );
-
-        return true;
-      } catch (error) {
-        return false;
-      }
-    });
+      return true;
+    } catch (error) {
+      console.log(error);
+      return false;
+    }
+    // });
   }
 
-  async removeMessages(userId: number, date: Date) {}
+  async softDeleteMessages(userId: number, date: Date): Promise<boolean> {
+    try {
+      const messages = await this.db.query.messages.findMany({
+        where: and(
+          eq(schema.messages.userId, userId),
+          ne(schema.messages.deleted, true)
+        ),
+        orderBy: desc(schema.messages.sentAt),
+      });
+
+      let currentDate = date;
+      const messagesIdToDelete = [];
+      for (let message of messages) {
+        const diffHours =
+          Math.abs(currentDate.getTime() - message.sentAt.getTime()) / 3600000;
+        if (diffHours < 1) {
+          currentDate = message.sentAt;
+          continue;
+        }
+
+        messagesIdToDelete.push(message.id);
+      }
+      if (messagesIdToDelete.length) {
+        console.log(messages, messagesIdToDelete);
+        await this.db
+          .update(schema.messages)
+          .set({
+            deleted: true,
+          })
+          .where(inArray(schema.messages.id, messagesIdToDelete));
+      }
+      return true;
+    } catch (err) {
+      console.log(err);
+      return false;
+    }
+  }
 }
