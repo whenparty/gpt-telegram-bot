@@ -17,13 +17,13 @@ export class BotService {
 
   setCommands() {
     this.bot.api.setMyCommands([
-      { command: "selectmodel", description: "Select an AI model" },
+      //   { command: "selectmodel", description: "Select an AI model" },
       { command: "newchat", description: "Start a new chat" },
     ]);
 
     this.bot.api.setMyCommands(
       [
-        { command: "selectmodel", description: "Выберите ИИ" },
+        //   { command: "selectmodel", description: "Выберите ИИ" },
         { command: "newchat", description: "Начать новый чат" },
       ],
       { language_code: "ru" }
@@ -65,7 +65,8 @@ export class BotService {
 
       const inlineKeyboard = new InlineKeyboard();
       user.tokens.forEach((token) => {
-        const modelTokens = token.tokens < 0 ? "not limited" : token.tokens;
+        const modelTokens =
+          token.tokens > 2 ** 20 ? "not limited" : token.tokens;
         inlineKeyboard
           .text(`${token.aiModel} / tokens: ${modelTokens}`, token.aiModel)
           .row();
@@ -74,6 +75,24 @@ export class BotService {
       await ctx.reply("Select the gtp model:", {
         reply_markup: inlineKeyboard,
       });
+    });
+
+    this.bot.command("newchat", async (ctx) => {
+      const { from } = ctx;
+      if (!from || from.is_bot) {
+        return;
+      }
+
+      const externalUserId = from.id.toString() ?? "";
+      const user = await repository.getUserWithTokens(externalUserId);
+      if (!user) {
+        throw new Error(`There is no user with id: ${externalUserId}`);
+      }
+
+      const nextHourDate = new Date();
+      nextHourDate.setHours(nextHourDate.getHours() + 2);
+      await repository.softDeleteMessages(user.id, nextHourDate);
+      await ctx.reply(`Chat history cleared`);
     });
 
     this.bot.on("callback_query:data", async (ctx) => {
@@ -97,7 +116,7 @@ export class BotService {
       const availableTokens = user.tokens.find(
         (token) => token.aiModel === selectedAiModel
       );
-      if (!availableTokens || availableTokens.tokens === 0) {
+      if (!availableTokens || availableTokens.tokens <= 0) {
         await ctx.answerCallbackQuery({
           text: `Unfortunately you do not have tokens for ${selectedAiModel}. Please select another AI model.`,
         });
@@ -115,6 +134,9 @@ export class BotService {
 
     this.bot.on("message:text", async (ctx) => {
       const chatId = ctx.chat.id;
+      const typingChatActionIntervalId = await this.simulateTypingChatAction(
+        chatId
+      );
 
       const externalUserId = ctx.from.id.toString();
       const user = await repository.getUserWithTokens(externalUserId);
@@ -125,7 +147,7 @@ export class BotService {
       const availableTokens = user.tokens.find(
         (token) => token.aiModel === user.aiModel
       );
-      if (!availableTokens || availableTokens.tokens === 0) {
+      if (!availableTokens || availableTokens.tokens <= 0) {
         await this.bot.api.sendMessage(
           chatId,
           `Unfortunately you do not have tokens for ${user.aiModel}`
@@ -133,14 +155,12 @@ export class BotService {
         return;
       }
 
+      await repository.softDeleteMessages(user.id, new Date());
+
       let answer: string = "";
 
       const message = await this.bot.api.sendMessage(chatId, "...");
       const messageId = message.message_id;
-
-      const typingChatActionIntervalId = await this.simulateTypingChatAction(
-        chatId
-      );
 
       const messages = await repository.findUserMessages(user.id);
       const userMessage = { role: "user" as const, content: ctx.message.text };
@@ -152,7 +172,7 @@ export class BotService {
       this.anthropic.messages
         .stream(
           {
-            model: user.aiModel,
+            model: AI_MODEL_API_VERSION[user.aiModel],
             max_tokens: 1024,
             messages: dialog,
           },
@@ -170,23 +190,26 @@ export class BotService {
         .on("finalMessage", async (message: Message) => {
           const text = message.content[0]?.text ?? "";
           const assistantMessage = { role: message.role, text };
-          const savingMessages = [userMessage, assistantMessage];
+          const savingMessages = [
+            { role: userMessage.role, text: userMessage.content },
+            assistantMessage,
+          ];
           const tokens =
             message.usage.input_tokens + message.usage.output_tokens;
-          let tokensLeft = availableTokens.tokens - tokens;
-          if (tokensLeft < 0) {
-            tokensLeft = 0;
-          }
+          const tokensLeft = availableTokens.tokens - tokens;
 
           clearInterval(typingChatActionIntervalId);
-          console.log("end", text);
-          console.log("tokens", tokens);
-          await repository.saveMessages(
+
+          const success = await repository.saveMessages(
             user.id,
             user.aiModel,
             savingMessages,
             tokensLeft
           );
+
+          console.log("end", text);
+          console.log("tokens", tokens);
+          console.log("success", success);
         });
     });
   }
