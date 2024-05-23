@@ -1,9 +1,8 @@
 import { Bot, InlineKeyboard } from "grammy";
 import throttle from "lodash.throttle";
-import { Message } from "@anthropic-ai/sdk/resources";
-import Anthropic from "@anthropic-ai/sdk";
-import { IRepository, Token } from "db/repository/repository";
+import { IRepository, Message, Token } from "db/repository/repository";
 import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
+import { AIClient } from "./aiClients/aiClient";
 
 const DEFAULT_TOKENS = [
   {
@@ -13,7 +12,10 @@ const DEFAULT_TOKENS = [
 ];
 
 export class BotService {
-  constructor(readonly bot: Bot, readonly anthropic: Anthropic) {}
+  constructor(
+    readonly bot: Bot,
+    readonly aiClients: Record<AI_MODEL, AIClient>
+  ) {}
 
   setCommands() {
     this.bot.api.setMyCommands([
@@ -169,48 +171,39 @@ export class BotService {
         userMessage,
       ];
 
-      this.anthropic.messages
-        .stream(
-          {
-            model: AI_MODEL_API_VERSION[user.aiModel],
-            max_tokens: 1024,
-            messages: dialog,
-          },
-          {
-            headers: { "anthropic-version": "2023-06-01" },
-          }
-        )
-        .on("text", async (_, text) => {
+      await this.aiClients[user.aiModel].stream({
+        model: AI_MODEL_API_VERSION[user.aiModel],
+        messages: dialog,
+        onUpdate: async (text) => {
           if (text !== answer) {
             await this.throttledReplyOrEditMessageText(chatId, messageId, text);
 
             answer = text;
           }
-        })
-        .on("finalMessage", async (message: Message) => {
-          const text = message.content[0]?.text ?? "";
-          const assistantMessage = { role: message.role, text };
-          const savingMessages = [
-            { role: userMessage.role, text: userMessage.content },
-            assistantMessage,
-          ];
-          const tokens =
-            message.usage.input_tokens + message.usage.output_tokens;
-          const tokensLeft = availableTokens.tokens - tokens;
-
+        },
+        onFinalMessage: async (text, usedTokens) => {
           clearInterval(typingChatActionIntervalId);
+
+          const askedQuestion: Pick<Message, "role" | "text"> = {
+            role: "user",
+            text: userMessage.content,
+          };
+          const assistantResponse = { role: "assistant", text };
+
+          const tokensLeft = availableTokens.tokens - usedTokens;
 
           const success = await repository.saveMessages(
             user.id,
             user.aiModel,
-            savingMessages,
+            [askedQuestion, assistantResponse],
             tokensLeft
           );
 
           console.log("end", text);
-          console.log("tokens", tokens);
+          console.log("tokens", tokensLeft);
           console.log("success", success);
-        });
+        },
+      });
     });
   }
 

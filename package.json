@@ -12,13 +12,14 @@
     "db:ui": "bun --env-file=.env.local drizzle-kit studio"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.20.6",
+    "@anthropic-ai/sdk": "^0.21.1",
     "@elysiajs/stream": "^1.0.2",
     "@grammyjs/menu": "^1.2.1",
     "drizzle-orm": "^0.30.10",
     "elysia": "latest",
     "grammy": "^1.22.4",
     "lodash.throttle": "^4.1.1",
+    "openai": "^4.47.1",
     "pg": "^8.11.5"
   },
   "devDependencies": {
