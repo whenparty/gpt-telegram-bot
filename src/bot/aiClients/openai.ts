@@ -36,13 +36,15 @@ class OpenAIClient implements AIClient {
     });
 
     for await (const chunk of stream) {
-      const text = chunk.choices[0]?.delta?.content ?? "";
-      if (text) {
-        finalMessage += " " + text;
+      if (chunk.choices[0] && !chunk.choices[0].finish_reason) {
+        const text = chunk.choices[0].delta.content ?? "";
+        finalMessage += text;
         await onUpdate(finalMessage);
       }
 
-      usedTokens += chunk.usage?.total_tokens ?? 0;
+      if (chunk.usage) {
+        usedTokens = chunk.usage.total_tokens;
+      }
     }
 
     await onFinalMessage(finalMessage, usedTokens);

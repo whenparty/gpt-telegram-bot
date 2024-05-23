@@ -154,6 +154,7 @@ export class Repository implements IRepository {
         .where(eq(schema.messages.id, userId));
       return true;
     } catch (error) {
+      console.log(error);
       return false;
     }
     //  });
