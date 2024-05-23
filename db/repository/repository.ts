@@ -151,7 +151,7 @@ export class Repository implements IRepository {
         .set({
           deleted: true,
         })
-        .where(eq(schema.messages.id, userId));
+        .where(eq(schema.messages.userId, userId));
       return true;
     } catch (error) {
       console.log(error);
