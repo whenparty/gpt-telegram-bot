@@ -117,7 +117,6 @@ export class Repository implements IRepository {
 
         return true;
       } catch (err) {
-        tx.rollback();
         console.error(err);
         return false;
       }
@@ -135,104 +134,105 @@ export class Repository implements IRepository {
   }
 
   async switchToModel(userId: number, aiModel: AI_MODEL) {
-    //return this.db.transaction(async (tx) => {
-    try {
-      // set ai model
-      await this.db
-        .update(schema.users)
-        .set({
-          aiModel,
-        })
-        .where(eq(schema.users.id, userId));
+    return this.db.transaction(async (tx) => {
+      try {
+        // set ai model
+        await tx
+          .update(schema.users)
+          .set({
+            aiModel,
+          })
+          .where(eq(schema.users.id, userId));
 
-      // soft delete old messages
-      await this.db
-        .update(schema.messages)
-        .set({
-          deleted: true,
-        })
-        .where(eq(schema.messages.userId, userId));
-      return true;
-    } catch (error) {
-      console.log(error);
-      return false;
-    }
-    //  });
+        // soft delete old messages
+        await tx
+          .update(schema.messages)
+          .set({
+            deleted: true,
+          })
+          .where(eq(schema.messages.userId, userId));
+        return true;
+      } catch (error) {
+        console.log(error);
+        return false;
+      }
+    });
   }
 
-  //async addMessage(userId: number, text: string) {}
   async saveMessages(
     userId: number,
     aiModel: AI_MODEL,
     messages: Pick<Message, "role" | "text">[],
     tokens: number
   ) {
-    //return this.db.transaction(async (tx) => {
-    try {
-      const t = await this.db.insert(schema.messages).values(
-        messages.map((m) => ({
-          userId,
-          aiModel,
-          role: m.role,
-          text: m.text,
-        }))
-      );
-
-      await this.db
-        .update(schema.tokens)
-        .set({
-          tokens: tokens,
-        })
-        .where(
-          and(
-            eq(schema.tokens.userId, userId),
-            eq(schema.tokens.aiModel, aiModel)
-          )
+    return this.db.transaction(async (tx) => {
+      try {
+        await tx.insert(schema.messages).values(
+          messages.map((m) => ({
+            userId,
+            aiModel,
+            role: m.role,
+            text: m.text,
+          }))
         );
 
-      return true;
-    } catch (error) {
-      console.log(error);
-      return false;
-    }
-    // });
+        await tx
+          .update(schema.tokens)
+          .set({
+            tokens: tokens,
+          })
+          .where(
+            and(
+              eq(schema.tokens.userId, userId),
+              eq(schema.tokens.aiModel, aiModel)
+            )
+          );
+
+        return true;
+      } catch (error) {
+        console.log(error);
+        return false;
+      }
+    });
   }
 
   async softDeleteMessages(userId: number, date: Date): Promise<boolean> {
-    try {
-      const messages = await this.db.query.messages.findMany({
-        where: and(
-          eq(schema.messages.userId, userId),
-          ne(schema.messages.deleted, true)
-        ),
-        orderBy: desc(schema.messages.sentAt),
-      });
+    return this.db.transaction(async (tx) => {
+      try {
+        const messages = await tx.query.messages.findMany({
+          where: and(
+            eq(schema.messages.userId, userId),
+            ne(schema.messages.deleted, true)
+          ),
+          orderBy: desc(schema.messages.sentAt),
+        });
 
-      let currentDate = date;
-      const messagesIdToDelete = [];
-      for (let message of messages) {
-        const diffHours =
-          Math.abs(currentDate.getTime() - message.sentAt.getTime()) / 3600000;
-        if (diffHours < 1) {
-          currentDate = message.sentAt;
-          continue;
+        let currentDate = date;
+        const messagesIdToDelete = [];
+        for (let message of messages) {
+          const diffHours =
+            Math.abs(currentDate.getTime() - message.sentAt.getTime()) /
+            3600000;
+          if (diffHours < 1) {
+            currentDate = message.sentAt;
+            continue;
+          }
+
+          messagesIdToDelete.push(message.id);
         }
-
-        messagesIdToDelete.push(message.id);
+        if (messagesIdToDelete.length) {
+          await tx
+            .update(schema.messages)
+            .set({
+              deleted: true,
+            })
+            .where(inArray(schema.messages.id, messagesIdToDelete));
+        }
+        return true;
+      } catch (err) {
+        console.log(err);
+        return false;
       }
-      if (messagesIdToDelete.length) {
-        console.log(messages, messagesIdToDelete);
-        await this.db
-          .update(schema.messages)
-          .set({
-            deleted: true,
-          })
-          .where(inArray(schema.messages.id, messagesIdToDelete));
-      }
-      return true;
-    } catch (err) {
-      console.log(err);
-      return false;
-    }
+    });
   }
 }
