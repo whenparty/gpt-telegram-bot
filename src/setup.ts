@@ -5,6 +5,7 @@ import { Elysia } from "elysia";
 export const setup = new Elysia()
   .derive({ as: "scoped" }, async () => {
     const client = await pool.connect();
+    console.log("derive", pool.idleCount, pool.totalCount);
     const db = createDB(client);
     return {
       client: client,
@@ -14,4 +15,5 @@ export const setup = new Elysia()
   })
   .onAfterHandle({ as: "scoped" }, (ctx) => {
     ctx.client?.release();
+    console.log("onAfterHandle", pool.idleCount, pool.totalCount);
   });
