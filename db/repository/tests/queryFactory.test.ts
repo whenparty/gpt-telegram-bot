@@ -1,9 +1,12 @@
 import { it, expect, describe } from "bun:test";
-import { db } from "../../connection";
 import { QueryFactory } from "../queryFactory";
 import { AI_MODEL } from "../aiModels";
+import { Client } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "db/schema";
 
 describe("Query Factory", () => {
+  const db = drizzle(new Client(), { schema });
   const queries = new QueryFactory(db);
 
   it("getUser", () => {

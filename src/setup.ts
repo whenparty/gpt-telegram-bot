@@ -1,8 +1,17 @@
-import { db } from "db/connection";
+import { createDB, pool } from "db/connection";
 import { Repository } from "db/repository/repository";
-import Elysia from "elysia";
-import { BotService } from "./bot/botService";
+import { Elysia } from "elysia";
 
-export const setup = new Elysia().decorate({
-  repository: new Repository(db),
-});
+export const setup = new Elysia()
+  .derive({ as: "scoped" }, async () => {
+    const client = await pool.connect();
+    const db = createDB(client);
+    return {
+      client: client,
+      repository: new Repository(db),
+      db: db,
+    };
+  })
+  .onAfterHandle({ as: "scoped" }, (ctx) => {
+    ctx.client?.release();
+  });

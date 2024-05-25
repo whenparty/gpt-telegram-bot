@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import { testController } from "../testController";
-import { fakeRepository } from "../../../db/fakes/fakeRepository";
 
 const TEST_HOST = "http://localhost";
 

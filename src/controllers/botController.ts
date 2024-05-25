@@ -21,14 +21,15 @@ const aiClientsMap = {
   [AI_MODEL.OPEN_AI_GPT_4_o]: openai,
 };
 
-const service = new BotService(bot, aiClientsMap);
-service.subscribeOnUpdate(setup.decorator.repository);
 export const botController = new Elysia({ prefix: BOT_CONTROLLER_PREFIX })
   .use(setup)
-  .decorate("service", () => {
-    console.log("decorator");
+  .derive(async (ctx) => {
+    const service = new BotService(bot, aiClientsMap);
+    service.subscribeOnUpdate(ctx.repository);
 
-    return service;
+    return {
+      service,
+    };
   })
   .get(BOT_CONTROLLER_ROUTE.setWebhook, async () => {
     try {
@@ -44,12 +45,12 @@ export const botController = new Elysia({ prefix: BOT_CONTROLLER_PREFIX })
   })
   .get(BOT_CONTROLLER_ROUTE.setCommands, ({ service }) => {
     try {
-      service().setCommands();
+      service.setCommands();
     } catch (e) {
       console.error(e);
     }
   })
-  .post(BOT_CONTROLLER_ROUTE.update, async ({ repository, body }) => {
+  .post(BOT_CONTROLLER_ROUTE.update, async ({ body }) => {
     const update = body as Update;
     try {
       await bot.handleUpdate(update);
