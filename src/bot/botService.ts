@@ -14,8 +14,11 @@ const DEFAULT_TOKENS = [
 export class BotService {
   constructor(
     readonly bot: Bot,
-    readonly aiClients: Record<AI_MODEL, AIClient>
-  ) {}
+    readonly aiClients: Record<AI_MODEL, AIClient>,
+    readonly repository: IRepository
+  ) {
+    this.subscribeOnUpdate();
+  }
 
   setCommands() {
     this.bot.api.setMyCommands([
@@ -32,7 +35,7 @@ export class BotService {
     );
   }
 
-  subscribeOnUpdate(repository: IRepository) {
+  private subscribeOnUpdate() {
     this.bot.command("start", async (ctx) => {
       const { from } = ctx;
       if (!from || from.is_bot) {
@@ -40,11 +43,11 @@ export class BotService {
       }
 
       const userId = from.id.toString();
-      let user = await repository.getUserWithTokens(userId);
+      let user = await this.repository.getUserWithTokens(userId);
 
       if (!user) {
         const tokens = DEFAULT_TOKENS;
-        const newUser = await repository.createUser(
+        const newUser = await this.repository.createUser(
           {
             externalIdentifier: from.id.toString(),
             aiModel: AI_MODEL.CLAUDE_3_HAIKU,
@@ -62,7 +65,7 @@ export class BotService {
       }
 
       if (!user.tokens.length) {
-        await repository.createTokens(user.id, DEFAULT_TOKENS);
+        await this.repository.createTokens(user.id, DEFAULT_TOKENS);
       }
 
       const inlineKeyboard = new InlineKeyboard();
@@ -86,21 +89,21 @@ export class BotService {
       }
 
       const externalUserId = from.id.toString() ?? "";
-      const user = await repository.getUserWithTokens(externalUserId);
+      const user = await this.repository.getUserWithTokens(externalUserId);
       if (!user) {
         throw new Error(`There is no user with id: ${externalUserId}`);
       }
 
       const nextHourDate = new Date();
       nextHourDate.setHours(nextHourDate.getHours() + 2);
-      await repository.softDeleteMessages(user.id, nextHourDate);
+      await this.repository.softDeleteMessages(user.id, nextHourDate);
       await ctx.reply(`Chat history cleared`);
     });
 
     this.bot.on("callback_query:data", async (ctx) => {
       const selectedAiModel = ctx.callbackQuery.data as AI_MODEL;
       const externalUserId = ctx.from.id.toString();
-      const user = await repository.getUserWithTokens(externalUserId);
+      const user = await this.repository.getUserWithTokens(externalUserId);
       if (!user) {
         throw new Error(`There is no user with id: ${externalUserId}`);
       }
@@ -124,7 +127,7 @@ export class BotService {
         });
       }
 
-      await repository.switchToModel(user.id, selectedAiModel);
+      await this.repository.switchToModel(user.id, selectedAiModel);
 
       await ctx.editMessageText(
         `Select the gtp model:\nYou chose ${selectedAiModel}`,
@@ -141,7 +144,7 @@ export class BotService {
       );
 
       const externalUserId = ctx.from.id.toString();
-      const user = await repository.getUserWithTokens(externalUserId);
+      const user = await this.repository.getUserWithTokens(externalUserId);
       if (!user) {
         throw new Error(`There is no user with id: ${externalUserId}`);
       }
@@ -157,14 +160,14 @@ export class BotService {
         return;
       }
 
-      await repository.softDeleteMessages(user.id, new Date());
+      await this.repository.softDeleteMessages(user.id, new Date());
 
       let answer: string = "";
 
       const message = await this.bot.api.sendMessage(chatId, "...");
       const messageId = message.message_id;
 
-      const messages = await repository.findUserMessages(user.id);
+      const messages = await this.repository.findUserMessages(user.id);
       const userMessage = { role: "user" as const, content: ctx.message.text };
       const dialog = [
         ...messages.map((m) => ({ role: m.role, content: m.text })),
@@ -192,7 +195,7 @@ export class BotService {
 
           const tokensLeft = availableTokens.tokens - usedTokens;
 
-          const success = await repository.saveMessages(
+          const success = await this.repository.saveMessages(
             user.id,
             user.aiModel,
             [askedQuestion, assistantResponse],
@@ -207,7 +210,7 @@ export class BotService {
     });
   }
 
-  async simulateTypingChatAction(chatId: number) {
+  private async simulateTypingChatAction(chatId: number) {
     try {
       await this.bot.api.sendChatAction(chatId, "typing");
 
@@ -221,12 +224,16 @@ export class BotService {
     }
   }
 
-  throttledReplyOrEditMessageText = throttle(this.replyOrEditMessageText, 500, {
-    leading: true,
-    trailing: true,
-  });
+  private throttledReplyOrEditMessageText = throttle(
+    this.replyOrEditMessageText,
+    500,
+    {
+      leading: true,
+      trailing: true,
+    }
+  );
 
-  async replyOrEditMessageText(
+  private async replyOrEditMessageText(
     chatId: number,
     messageId: number,
     text: string

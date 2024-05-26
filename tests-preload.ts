@@ -2,11 +2,10 @@ import { mock } from "bun:test";
 import { fakeRepository } from "db/fakes/fakeRepository";
 import Elysia from "elysia";
 
-console.log("TESTS PRELOASD");
+console.log("TESTS PRELOAD");
 mock.module("./src/setup.ts", () => {
   return {
-    setup: new Elysia().decorate({
-      repository: fakeRepository,
-    }),
+    setup: new Elysia(),
+    repository: fakeRepository,
   };
 });

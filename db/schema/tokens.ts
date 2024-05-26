@@ -1,4 +1,11 @@
-import { index, integer, pgTable, serial, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  pgTable,
+  serial,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { relations } from "drizzle-orm";
 
@@ -18,6 +25,10 @@ export const tokens = pgTable(
   (table) => {
     return {
       userIdx: index("token_user_id_idx").on(table.userId),
+      modelUserUk: unique("token_ai_model_user_id_uk").on(
+        table.aiModel,
+        table.userId
+      ),
     };
   }
 );

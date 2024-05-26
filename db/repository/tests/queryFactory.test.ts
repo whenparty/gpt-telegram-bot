@@ -7,7 +7,7 @@ import * as schema from "db/schema";
 
 describe("Query Factory", () => {
   const db = drizzle(new Client(), { schema });
-  const queries = new QueryFactory(db);
+  const queries = new QueryFactory();
 
   it("getUser", () => {
     const id = "user_id";

@@ -16,7 +16,7 @@ export type User = InferSelectModel<typeof schema.users>;
 export type Token = InferSelectModel<typeof schema.tokens>;
 
 export class QueryFactory {
-  constructor(private db: NodePgDatabase<typeof schema>) {}
+  constructor() {}
 
   getUserWithTokens(
     db: NodePgDatabase<typeof schema>,

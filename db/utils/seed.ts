@@ -1,13 +1,17 @@
-import { connection, db } from "../connection";
 import * as schema from "../schema";
 import fakeUsers from "../fakes/fakeUsers";
 import fakeMessages from "../fakes/fakeMessages";
 import fakeTokens from "db/fakes/fakeTokens";
+import { createDB, pool } from "db/connection";
 
-await connection.connect();
+const client = await pool.connect();
 
-await db.insert(schema.users).values(fakeUsers);
-await db.insert(schema.tokens).values(fakeTokens);
-await db.insert(schema.messages).values(fakeMessages);
+const db = createDB(client);
 
-connection.end(console.log);
+db.transaction(async (tx) => {
+  await tx.insert(schema.users).values(fakeUsers);
+  await tx.insert(schema.tokens).values(fakeTokens);
+  await tx.insert(schema.messages).values(fakeMessages);
+});
+
+client.release();

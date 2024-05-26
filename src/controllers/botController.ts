@@ -3,7 +3,7 @@ import { Update } from "@grammyjs/types";
 import { BotService } from "../bot/botService";
 import { anthropic } from "../bot/aiClients/anthropic";
 import { bot } from "../bot/bot";
-import { setup } from "src/setup";
+import { repository, setup } from "src/setup";
 import { openai } from "src/bot/aiClients/openai";
 import { AI_MODEL } from "db/repository/aiModels";
 
@@ -23,14 +23,7 @@ const aiClientsMap = {
 
 export const botController = new Elysia({ prefix: BOT_CONTROLLER_PREFIX })
   .use(setup)
-  .derive(async (ctx) => {
-    const service = new BotService(bot, aiClientsMap);
-    service.subscribeOnUpdate(ctx.repository);
-
-    return {
-      service,
-    };
-  })
+  .decorate("service", new BotService(bot, aiClientsMap, repository))
   .get(BOT_CONTROLLER_ROUTE.setWebhook, async () => {
     try {
       const webhookUrl =

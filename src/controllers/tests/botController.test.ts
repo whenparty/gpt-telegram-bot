@@ -4,7 +4,7 @@ import { bot } from "src/bot/bot";
 
 const TEST_HOST = "http://localhost";
 
-describe("Elysia", () => {
+describe("Bot Controller", () => {
   let outgoingRequests = [];
   beforeAll(() => {
     bot.api.config.use((_, method, payload, signal) => {
