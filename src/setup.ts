@@ -1,19 +1,14 @@
-import { createDB, pool } from "db/connection";
+import { pool } from "db/connection";
 import { Repository } from "db/repository/repository";
+import { withTransaction } from "db/repository/repositoryDecorator";
 import { Elysia } from "elysia";
 
+export const repository = withTransaction(new Repository(), pool);
+
 export const setup = new Elysia()
-  .derive({ as: "scoped" }, async () => {
-    const client = await pool.connect();
-    console.log("derive", pool.idleCount, pool.totalCount);
-    const db = createDB(client);
-    return {
-      client: client,
-      repository: new Repository(db),
-      db: db,
-    };
+  .onBeforeHandle({ as: "scoped" }, async () => {
+    console.log("onBeforeHandle", pool.idleCount, pool.totalCount);
   })
   .onAfterHandle({ as: "scoped" }, (ctx) => {
-    ctx.client?.release();
     console.log("onAfterHandle", pool.idleCount, pool.totalCount);
   });

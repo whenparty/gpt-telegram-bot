@@ -1,10 +1,20 @@
-import { InferSelectModel, and, asc, desc, eq, inArray, ne } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import {
+  ExtractTablesWithRelations,
+  InferSelectModel,
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  ne,
+} from "drizzle-orm";
+import { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import { users } from "../schema/users";
 import { tokens } from "../schema/tokens";
 import * as schema from "../schema";
 import { QueryFactory, UserWithTokens } from "./queryFactory";
 import { AI_MODEL } from "./aiModels";
+import { PgTransaction } from "drizzle-orm/pg-core";
 
 export type User = InferSelectModel<typeof users>;
 export type Token = InferSelectModel<typeof tokens>;
@@ -35,96 +45,78 @@ export interface IRepository {
   ): Promise<boolean>;
   softDeleteMessages(userId: number, date: Date): Promise<boolean>;
 }
-export class Repository implements IRepository {
+
+type TransactionType = PgTransaction<
+  NodePgQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+
+type RepositoryWithTx = {
+  [K in keyof IRepository]: IRepository[K] extends (...args: infer A) => infer R
+    ? (...args: [tx: TransactionType, ...A]) => R
+    : IRepository[K];
+};
+
+export class Repository implements RepositoryWithTx {
   private queries: QueryFactory;
-  constructor(private db: NodePgDatabase<typeof schema>) {
-    this.queries = new QueryFactory(db);
+  constructor() {
+    this.queries = new QueryFactory();
   }
 
   async getUserWithTokens(
+    tx: TransactionType,
     externalIdentifier: string
   ): Promise<UserWithTokens | undefined> {
-    try {
-      const user = await this.queries.getUserWithTokens(
-        this.db,
-        externalIdentifier
-      );
-
-      return user;
-    } catch (err) {
-      console.log(err);
-    }
+    return this.queries.getUserWithTokens(tx, externalIdentifier);
   }
 
   async findAvailableAiModels(
+    tx: TransactionType,
     userId: number
   ): Promise<Pick<Token, "aiModel" | "tokens">[]> {
-    try {
-      const tokens = await this.db
-        .select({
-          aiModel: schema.tokens.aiModel,
-          tokens: schema.tokens.tokens,
-        })
-        .from(schema.tokens)
-        .where(eq(schema.users.id, userId));
-
-      return tokens;
-    } catch (err) {
-      console.log(err);
-      throw new Error(`Cannot find available tokens user ${userId}`);
-    }
+    return tx
+      .select({
+        aiModel: schema.tokens.aiModel,
+        tokens: schema.tokens.tokens,
+      })
+      .from(schema.tokens)
+      .where(eq(schema.users.id, userId));
   }
 
   async createUser(
+    tx: TransactionType,
     user: Omit<User, "id">,
     tokens: Omit<Token, "id" | "userId">[]
   ): Promise<User> {
-    return this.db.transaction(async (tx) => {
-      try {
-        const insertedUsers = await this.queries.insertUser(tx, user);
-        const newUser = insertedUsers[0];
+    const insertedUsers = await this.queries.insertUser(tx, user);
+    const newUser = insertedUsers[0];
 
-        await this.queries.insertTokens(tx, newUser.id, tokens);
-
-        return newUser;
-      } catch (err) {
-        tx.rollback();
-        console.error(err);
-        throw new Error("Cannot create a new user");
-      }
-    });
+    await this.queries.insertTokens(tx, newUser.id, tokens);
+    return newUser;
   }
 
   async createTokens(
+    tx: TransactionType,
     userId: number,
     tokens: Omit<Token, "id" | "userId">[]
   ): Promise<Token[]> {
-    return this.db.transaction(async (tx) => {
-      try {
-        return await this.queries.insertTokens(tx, userId, tokens).returning();
-      } catch (err) {
-        tx.rollback();
-        console.error(err);
-        throw new Error(`Cannot insert tokens for user ${userId}`);
-      }
-    });
+    return this.queries.insertTokens(tx, userId, tokens).returning();
   }
 
-  async updateTokensAmount(id: number, tokensAmount: number) {
-    return this.db.transaction(async (tx) => {
-      try {
-        await this.queries.updateTokenAmount(tx, id, tokensAmount);
+  // async updateTokensAmount(
+  //   tx: TransactionType,
+  //   id: number,
+  //   tokensAmount: number
+  // ) {
+  //   await this.queries.updateTokenAmount(tx, id, tokensAmount);
+  // }
 
-        return true;
-      } catch (err) {
-        console.error(err);
-        return false;
-      }
-    });
-  }
-
-  async findUserMessages(userId: number): Promise<Message[]> {
-    return this.db.query.messages.findMany({
+  async findUserMessages(
+    tx: TransactionType,
+    userId: number
+  ): Promise<Message[]> {
+    return tx.query.messages.findMany({
       where: and(
         eq(schema.messages.userId, userId),
         ne(schema.messages.deleted, true)
@@ -133,106 +125,90 @@ export class Repository implements IRepository {
     });
   }
 
-  async switchToModel(userId: number, aiModel: AI_MODEL) {
-    return this.db.transaction(async (tx) => {
-      try {
-        // set ai model
-        await tx
-          .update(schema.users)
-          .set({
-            aiModel,
-          })
-          .where(eq(schema.users.id, userId));
+  async switchToModel(tx: TransactionType, userId: number, aiModel: AI_MODEL) {
+    // set ai model
+    await tx
+      .update(schema.users)
+      .set({
+        aiModel,
+      })
+      .where(eq(schema.users.id, userId));
 
-        // soft delete old messages
-        await tx
-          .update(schema.messages)
-          .set({
-            deleted: true,
-          })
-          .where(eq(schema.messages.userId, userId));
-        return true;
-      } catch (error) {
-        console.log(error);
-        return false;
-      }
-    });
+    // soft delete old messages
+    await tx
+      .update(schema.messages)
+      .set({
+        deleted: true,
+      })
+      .where(eq(schema.messages.userId, userId));
+
+    return true;
   }
 
   async saveMessages(
+    tx: TransactionType,
     userId: number,
     aiModel: AI_MODEL,
     messages: Pick<Message, "role" | "text">[],
     tokens: number
   ) {
-    return this.db.transaction(async (tx) => {
-      try {
-        await tx.insert(schema.messages).values(
-          messages.map((m) => ({
-            userId,
-            aiModel,
-            role: m.role,
-            text: m.text,
-          }))
-        );
+    await tx.insert(schema.messages).values(
+      messages.map((m) => ({
+        userId,
+        aiModel,
+        role: m.role,
+        text: m.text,
+      }))
+    );
 
-        await tx
-          .update(schema.tokens)
-          .set({
-            tokens: tokens,
-          })
-          .where(
-            and(
-              eq(schema.tokens.userId, userId),
-              eq(schema.tokens.aiModel, aiModel)
-            )
-          );
+    await tx
+      .update(schema.tokens)
+      .set({
+        tokens: tokens,
+      })
+      .where(
+        and(
+          eq(schema.tokens.userId, userId),
+          eq(schema.tokens.aiModel, aiModel)
+        )
+      );
 
-        return true;
-      } catch (error) {
-        console.log(error);
-        return false;
-      }
-    });
+    return true;
   }
 
-  async softDeleteMessages(userId: number, date: Date): Promise<boolean> {
-    return this.db.transaction(async (tx) => {
-      try {
-        const messages = await tx.query.messages.findMany({
-          where: and(
-            eq(schema.messages.userId, userId),
-            ne(schema.messages.deleted, true)
-          ),
-          orderBy: desc(schema.messages.sentAt),
-        });
-
-        let currentDate = date;
-        const messagesIdToDelete = [];
-        for (let message of messages) {
-          const diffHours =
-            Math.abs(currentDate.getTime() - message.sentAt.getTime()) /
-            3600000;
-          if (diffHours < 1) {
-            currentDate = message.sentAt;
-            continue;
-          }
-
-          messagesIdToDelete.push(message.id);
-        }
-        if (messagesIdToDelete.length) {
-          await tx
-            .update(schema.messages)
-            .set({
-              deleted: true,
-            })
-            .where(inArray(schema.messages.id, messagesIdToDelete));
-        }
-        return true;
-      } catch (err) {
-        console.log(err);
-        return false;
-      }
+  async softDeleteMessages(
+    tx: TransactionType,
+    userId: number,
+    date: Date
+  ): Promise<boolean> {
+    const messages = await tx.query.messages.findMany({
+      where: and(
+        eq(schema.messages.userId, userId),
+        ne(schema.messages.deleted, true)
+      ),
+      orderBy: desc(schema.messages.sentAt),
     });
+
+    let currentDate = date;
+    const messagesIdToDelete = [];
+    for (let message of messages) {
+      const diffHours =
+        Math.abs(currentDate.getTime() - message.sentAt.getTime()) / 3600000;
+      if (diffHours < 1) {
+        currentDate = message.sentAt;
+        continue;
+      }
+
+      messagesIdToDelete.push(message.id);
+    }
+    if (messagesIdToDelete.length) {
+      await tx
+        .update(schema.messages)
+        .set({
+          deleted: true,
+        })
+        .where(inArray(schema.messages.id, messagesIdToDelete));
+    }
+    return true;
   }
 }

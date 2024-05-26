@@ -4,9 +4,11 @@ import * as schema from "./schema";
 
 export const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
-  // max: 3,
-  // idleTimeoutMillis: 1000000,
-  log: console.log,
+});
+
+pool.on("error", (err, client) => {
+  console.error("Unexpected error on idle client", err);
+  process.exit(-1);
 });
 
 export const createDB = (client: PoolClient) => drizzle(client, { schema });

@@ -1,9 +1,9 @@
 import { Elysia } from "elysia";
-import { setup } from "src/setup";
+import { repository, setup } from "src/setup";
 
 export const testController = new Elysia({ prefix: "/test" })
   .use(setup)
-  .get("/", async ({ repository }) => {
+  .get("/", async () => {
     const user = await repository.getUserWithTokens("1");
     const userMessages = await repository.findUserMessages(user!.id);
 
