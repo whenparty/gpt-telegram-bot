@@ -35,7 +35,7 @@ export interface IRepository {
   findUserMessages(userId: number): Promise<Message[]>;
   findAvailableAiModels(
     userId: number
-  ): Promise<Pick<Token, "aiModel" | "tokens">[]>;
+  ): Promise<Pick<Token, "aiModel" | "amount">[]>;
   switchToModel(userId: number, aiModel: AI_MODEL): Promise<boolean>;
   saveMessages(
     userId: number,
@@ -46,7 +46,7 @@ export interface IRepository {
   softDeleteMessages(userId: number, date: Date): Promise<boolean>;
 }
 
-type TransactionType = PgTransaction<
+type Transaction = PgTransaction<
   NodePgQueryResultHKT,
   typeof schema,
   ExtractTablesWithRelations<typeof schema>
@@ -54,68 +54,46 @@ type TransactionType = PgTransaction<
 
 type RepositoryWithTx = {
   [K in keyof IRepository]: IRepository[K] extends (...args: infer A) => infer R
-    ? (...args: [tx: TransactionType, ...A]) => R
+    ? (...args: [tx: Transaction, ...A]) => R
     : IRepository[K];
 };
 
 export class Repository implements RepositoryWithTx {
-  private queries: QueryFactory;
-  constructor() {
-    this.queries = new QueryFactory();
-  }
-
   async getUserWithTokens(
-    tx: TransactionType,
+    tx: Transaction,
     externalIdentifier: string
   ): Promise<UserWithTokens | undefined> {
-    return this.queries.getUserWithTokens(tx, externalIdentifier);
+    return QueryFactory.getUserWithTokens(tx, externalIdentifier);
   }
 
   async findAvailableAiModels(
-    tx: TransactionType,
+    tx: Transaction,
     userId: number
-  ): Promise<Pick<Token, "aiModel" | "tokens">[]> {
-    return tx
-      .select({
-        aiModel: schema.tokens.aiModel,
-        tokens: schema.tokens.tokens,
-      })
-      .from(schema.tokens)
-      .where(eq(schema.users.id, userId));
+  ): Promise<Pick<Token, "aiModel" | "amount">[]> {
+    return QueryFactory.findAvailableAiModels(tx, userId);
   }
 
   async createUser(
-    tx: TransactionType,
+    tx: Transaction,
     user: Omit<User, "id">,
-    tokens: Omit<Token, "id" | "userId">[]
+    tokens: { aiModel: AI_MODEL; amount: number }[]
   ): Promise<User> {
-    const insertedUsers = await this.queries.insertUser(tx, user);
+    const insertedUsers = await QueryFactory.insertUser(tx, user);
     const newUser = insertedUsers[0];
 
-    await this.queries.insertTokens(tx, newUser.id, tokens);
+    await QueryFactory.insertTokens(tx, newUser.id, tokens);
     return newUser;
   }
 
   async createTokens(
-    tx: TransactionType,
+    tx: Transaction,
     userId: number,
     tokens: Omit<Token, "id" | "userId">[]
   ): Promise<Token[]> {
-    return this.queries.insertTokens(tx, userId, tokens).returning();
+    return QueryFactory.insertTokens(tx, userId, tokens);
   }
 
-  // async updateTokensAmount(
-  //   tx: TransactionType,
-  //   id: number,
-  //   tokensAmount: number
-  // ) {
-  //   await this.queries.updateTokenAmount(tx, id, tokensAmount);
-  // }
-
-  async findUserMessages(
-    tx: TransactionType,
-    userId: number
-  ): Promise<Message[]> {
+  async findUserMessages(tx: Transaction, userId: number): Promise<Message[]> {
     return tx.query.messages.findMany({
       where: and(
         eq(schema.messages.userId, userId),
@@ -125,7 +103,7 @@ export class Repository implements RepositoryWithTx {
     });
   }
 
-  async switchToModel(tx: TransactionType, userId: number, aiModel: AI_MODEL) {
+  async switchToModel(tx: Transaction, userId: number, aiModel: AI_MODEL) {
     // set ai model
     await tx
       .update(schema.users)
@@ -146,11 +124,11 @@ export class Repository implements RepositoryWithTx {
   }
 
   async saveMessages(
-    tx: TransactionType,
+    tx: Transaction,
     userId: number,
     aiModel: AI_MODEL,
     messages: Pick<Message, "role" | "text">[],
-    tokens: number
+    tokenAmount: number
   ) {
     await tx.insert(schema.messages).values(
       messages.map((m) => ({
@@ -164,7 +142,7 @@ export class Repository implements RepositoryWithTx {
     await tx
       .update(schema.tokens)
       .set({
-        tokens: tokens,
+        amount: tokenAmount,
       })
       .where(
         and(
@@ -177,7 +155,7 @@ export class Repository implements RepositoryWithTx {
   }
 
   async softDeleteMessages(
-    tx: TransactionType,
+    tx: Transaction,
     userId: number,
     date: Date
   ): Promise<boolean> {

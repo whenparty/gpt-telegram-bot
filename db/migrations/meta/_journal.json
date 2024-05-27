@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1715866634917,
-      "tag": "0000_smooth_captain_flint",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1716470209396,
-      "tag": "0001_wet_jack_flag",
+      "when": 1716800024024,
+      "tag": "0000_serious_talon",
       "breakpoints": true
     }
   ]
