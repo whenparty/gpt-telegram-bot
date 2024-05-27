@@ -1,5 +1,5 @@
 import { AI_MODEL } from "db/repository/aiModels";
-import { IRepository } from "../repository/repository";
+import { IRepository, Token } from "../repository/repository";
 import fakeMessages from "./fakeMessages";
 import fakeUsers from "./fakeUsers";
 import fakeTokens from "./fakeTokens";
@@ -23,10 +23,7 @@ export const fakeRepository: IRepository = {
       },
       "id"
     >,
-    tokens: Omit<
-      { id: number; aiModel: string; userId: number; tokens: number },
-      "id" | "userId"
-    >[]
+    tokens: Omit<Token, "id" | "userId">[]
   ): Promise<{
     id: number;
     externalIdentifier: string;
@@ -37,23 +34,13 @@ export const fakeRepository: IRepository = {
   },
   createTokens: function (
     userId: number,
-    tokens: Omit<
-      { id: number; aiModel: string; userId: number; tokens: number },
-      "id" | "userId"
-    >[]
-  ): Promise<
-    { id: number; aiModel: string; userId: number; tokens: number }[]
-  > {
+    tokens: Omit<Token, "id" | "userId">[]
+  ): Promise<Token[]> {
     throw new Error("Function not implemented.");
   },
   findAvailableAiModels: function (
     userId: number
-  ): Promise<
-    Pick<
-      { id: number; aiModel: string; userId: number; tokens: number },
-      "aiModel" | "tokens"
-    >[]
-  > {
+  ): Promise<Pick<Token, "aiModel" | "amount">[]> {
     throw new Error("Function not implemented.");
   },
   switchToModel: function (

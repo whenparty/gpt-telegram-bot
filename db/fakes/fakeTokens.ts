@@ -7,6 +7,6 @@ export default [
     id: 1,
     userId: 1,
     aiModel: AI_MODEL.CLAUDE_3_HAIKU,
-    tokens: 10,
+    amount: 10,
   },
 ] as InferSelectModel<typeof tokens>[];

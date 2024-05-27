@@ -4,10 +4,10 @@ import { IRepository, Message, Token } from "db/repository/repository";
 import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
 import { AIClient } from "./aiClients/aiClient";
 
-const DEFAULT_TOKENS = [
+const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
   {
     aiModel: AI_MODEL.CLAUDE_3_HAIKU,
-    tokens: 1000,
+    amount: 1000,
   },
 ];
 
@@ -70,8 +70,7 @@ export class BotService {
 
       const inlineKeyboard = new InlineKeyboard();
       user.tokens.forEach((token) => {
-        const modelTokens =
-          token.tokens > 2 ** 20 ? "not limited" : token.tokens;
+        const modelTokens = token.amount > 1e6 ? "not limited" : token.amount;
         inlineKeyboard
           .text(`${token.aiModel} / tokens: ${modelTokens}`, token.aiModel)
           .row();
@@ -121,7 +120,7 @@ export class BotService {
       const availableTokens = user.tokens.find(
         (token) => token.aiModel === selectedAiModel
       );
-      if (!availableTokens || availableTokens.tokens <= 0) {
+      if (!availableTokens || availableTokens.amount <= 0) {
         await ctx.answerCallbackQuery({
           text: `Unfortunately you do not have tokens for ${selectedAiModel}. Please select another AI model.`,
         });
@@ -152,7 +151,7 @@ export class BotService {
       const availableTokens = user.tokens.find(
         (token) => token.aiModel === user.aiModel
       );
-      if (!availableTokens || availableTokens.tokens <= 0) {
+      if (!availableTokens || availableTokens.amount <= 0) {
         await this.bot.api.sendMessage(
           chatId,
           `Unfortunately you do not have tokens for ${user.aiModel}`
@@ -193,7 +192,7 @@ export class BotService {
           };
           const assistantResponse = { role: "assistant", text };
 
-          const tokensLeft = availableTokens.tokens - usedTokens;
+          const tokensLeft = availableTokens.amount - usedTokens;
 
           const success = await this.repository.saveMessages(
             user.id,
