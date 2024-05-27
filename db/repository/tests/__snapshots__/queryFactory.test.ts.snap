@@ -1,9 +1,9 @@
 // Bun Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Query Factory getUser: $1:user_id $2:1 1`] = `"select "users"."id", "users"."external_identifier", "users"."name", "users"."ai_model", "users_tokens"."data" as "tokens" from "users" left join lateral (select coalesce(json_agg(json_build_array("users_tokens"."id", "users_tokens"."tokens", "users_tokens"."ai_model", "users_tokens"."user_id")), '[]'::json) as "data" from "tokens" "users_tokens" where "users_tokens"."user_id" = "users"."id") "users_tokens" on true where "users"."external_identifier" = $1 limit $2"`;
+exports[`Query Factory getUserWithTokens: $1:user_id $2:1 1`] = `"select "users"."id", "users"."external_identifier", "users"."name", "users"."ai_model", "users_tokens"."data" as "tokens" from "users" left join lateral (select coalesce(json_agg(json_build_array("users_tokens"."id", "users_tokens"."amount", "users_tokens"."ai_model", "users_tokens"."user_id")), '[]'::json) as "data" from "tokens" "users_tokens" where "users_tokens"."user_id" = "users"."id") "users_tokens" on true where "users"."external_identifier" = $1 limit $2"`;
 
-exports[`Query Factory insertUser: $1:fake_id $2:fake $3:claude-3-haiku 1`] = `"insert into "users" ("id", "external_identifier", "name", "ai_model") values (default, $1, $2, $3) returning "id", "external_identifier", "name", "ai_model""`;
+exports[`Query Factory findAvailableAiModels: $1:1 1`] = `"select "ai_model", "amount" from "tokens" where "tokens"."user_id" = $1"`;
 
-exports[`Query Factory insertTokens: $1:100 $2:claude-3-haiku $3:1 $4:200 $5:claude-3-opus $6:1 1`] = `"insert into "tokens" ("id", "tokens", "ai_model", "user_id") values (default, $1, $2, $3), (default, $4, $5, $6)"`;
+exports[`Query Factory insertUser: $1:fake_id $2:fake $3:openai-gpt-4o 1`] = `"insert into "users" ("id", "external_identifier", "name", "ai_model") values (default, $1, $2, $3) returning "id", "external_identifier", "name", "ai_model""`;
 
-exports[`Query Factory updateTokenAmount: $1:100 $2:1 1`] = `"update "tokens" set "tokens" = $1 where "tokens"."id" = $2"`;
+exports[`Query Factory insertTokens: $1:100 $2:claude-3-haiku $3:1 $4:200 $5:claude-3-opus $6:1 1`] = `"insert into "tokens" ("id", "amount", "ai_model", "user_id") values (default, $1, $2, $3), (default, $4, $5, $6) returning "id", "amount", "ai_model", "user_id""`;
