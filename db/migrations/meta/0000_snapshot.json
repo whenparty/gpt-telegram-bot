@@ -1,5 +1,5 @@
 {
-  "id": "214b4cc5-49dd-4544-9ad3-0f3459d5fe76",
+  "id": "8f0a1d57-579b-4bc1-b0e8-f2f16aba0e97",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "6",
   "dialect": "postgresql",
@@ -65,15 +65,16 @@
           "primaryKey": true,
           "notNull": true
         },
-        "tokens": {
-          "name": "tokens",
+        "amount": {
+          "name": "amount",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
         "ai_model": {
           "name": "ai_model",
-          "type": "varchar(100)",
+          "type": "ai_model",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -109,7 +110,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {
+        "token_ai_model_user_id_uk": {
+          "name": "token_ai_model_user_id_uk",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ai_model",
+            "user_id"
+          ]
+        }
+      }
     },
     "public.messages": {
       "name": "messages",
@@ -196,7 +206,9 @@
       "schema": "public",
       "values": [
         "claude-3-haiku",
-        "claude-3-opus"
+        "claude-3-opus",
+        "openai-gpt-3.5-turbo",
+        "openai-gpt-4o"
       ]
     }
   },

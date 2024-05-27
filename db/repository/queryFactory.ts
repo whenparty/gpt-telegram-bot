@@ -18,7 +18,7 @@ export type Token = InferSelectModel<typeof schema.tokens>;
 export class QueryFactory {
   constructor() {}
 
-  getUserWithTokens(
+  static getUserWithTokens(
     db: NodePgDatabase<typeof schema>,
     externalIdentifier: string
   ): PgRelationalQuery<UserWithTokens | undefined> {
@@ -30,39 +30,37 @@ export class QueryFactory {
     });
   }
 
-  insertUser(
-    tx: PgTransaction<
-      NodePgQueryResultHKT,
-      typeof schema,
-      ExtractTablesWithRelations<typeof schema>
-    >,
-    user: Omit<User, "id">
-  ) {
-    return tx
-      .insert(schema.users)
-      .values({
-        externalIdentifier: user.externalIdentifier,
-        name: user.name,
-        aiModel: AI_MODEL.CLAUDE_3_HAIKU,
-      })
-      .returning();
+  static findAvailableAiModels(
+    db: NodePgDatabase<typeof schema>,
+    userId: number
+  ): PgRelationalQuery<{ aiModel: AI_MODEL; amount: number }[]> {
+    return db.query.tokens.findMany({
+      columns: {
+        aiModel: true,
+        amount: true,
+      },
+      where: eq(schema.tokens.userId, userId),
+    });
   }
 
-  insertTokens(
-    tx: PgTransaction<
-      NodePgQueryResultHKT,
-      typeof schema,
-      ExtractTablesWithRelations<typeof schema>
-    >,
+  static insertUser(db: NodePgDatabase<typeof schema>, user: Omit<User, "id">) {
+    return db.insert(schema.users).values(user).returning();
+  }
+
+  static insertTokens(
+    db: NodePgDatabase<typeof schema>,
     userId: number,
     tokens: Omit<Token, "id" | "userId">[]
   ) {
-    return tx.insert(schema.tokens).values(
-      tokens.map((token) => ({
-        ...token,
-        userId,
-      }))
-    );
+    return db
+      .insert(schema.tokens)
+      .values(
+        tokens.map((token) => ({
+          ...token,
+          userId,
+        }))
+      )
+      .returning();
   }
 
   updateTokenAmount(
@@ -77,7 +75,7 @@ export class QueryFactory {
     return tx
       .update(schema.tokens)
       .set({
-        tokens: tokensAmount,
+        amount: tokensAmount,
       })
       .where(eq(schema.tokens.id, id));
   }

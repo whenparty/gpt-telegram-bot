@@ -1,5 +1,5 @@
 DO $$ BEGIN
- CREATE TYPE "public"."ai_model" AS ENUM('claude-3-haiku', 'claude-3-opus');
+ CREATE TYPE "public"."ai_model" AS ENUM('claude-3-haiku', 'claude-3-opus', 'openai-gpt-3.5-turbo', 'openai-gpt-4o');
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -14,9 +14,10 @@ CREATE TABLE IF NOT EXISTS "users" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "tokens" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"tokens" integer NOT NULL,
-	"ai_model" varchar(100) NOT NULL,
-	"user_id" integer NOT NULL
+	"amount" integer NOT NULL,
+	"ai_model" "ai_model" NOT NULL,
+	"user_id" integer NOT NULL,
+	CONSTRAINT "token_ai_model_user_id_uk" UNIQUE("ai_model","user_id")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "messages" (
