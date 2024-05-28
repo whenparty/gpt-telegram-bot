@@ -1,23 +1,11 @@
-import {
-  NodePgDatabase,
-  NodePgQueryResultHKT,
-} from "drizzle-orm/node-postgres";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../schema";
-import { ExtractTablesWithRelations, InferSelectModel, eq } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { AI_MODEL } from "./aiModels";
 import { PgRelationalQuery } from "drizzle-orm/pg-core/query-builders/query";
-
-export type UserWithTokens = User & {
-  tokens: Token[];
-};
-
-export type User = InferSelectModel<typeof schema.users>;
-export type Token = InferSelectModel<typeof schema.tokens>;
+import { Message, Token, User, UserWithTokens } from "./types";
 
 export class QueryFactory {
-  constructor() {}
-
   static getUserWithTokens(
     db: NodePgDatabase<typeof schema>,
     externalIdentifier: string
@@ -43,6 +31,19 @@ export class QueryFactory {
     });
   }
 
+  static findUserMessages(
+    db: NodePgDatabase<typeof schema>,
+    userId: number
+  ): PgRelationalQuery<Message[]> {
+    return db.query.messages.findMany({
+      where: and(
+        eq(schema.messages.userId, userId),
+        ne(schema.messages.deleted, sql`true`)
+      ),
+      orderBy: asc(schema.messages.sentAt),
+    });
+  }
+
   static insertUser(db: NodePgDatabase<typeof schema>, user: Omit<User, "id">) {
     return db.insert(schema.users).values(user).returning();
   }
@@ -63,20 +64,74 @@ export class QueryFactory {
       .returning();
   }
 
-  updateTokenAmount(
-    tx: PgTransaction<
-      NodePgQueryResultHKT,
-      typeof schema,
-      ExtractTablesWithRelations<typeof schema>
-    >,
-    id: number,
-    tokensAmount: number
+  static insertMessages(
+    db: NodePgDatabase<typeof schema>,
+    userId: number,
+    aiModel: AI_MODEL,
+    messages: Pick<Message, "role" | "text">[]
   ) {
-    return tx
+    const messageToAdd: Omit<Message, "id" | "sentAt" | "deleted">[] =
+      messages.map((message) => ({
+        aiModel,
+        userId,
+        role: message.role,
+        text: message.text,
+      }));
+
+    return db.insert(schema.messages).values(messageToAdd);
+  }
+
+  static setUserAiModel(
+    db: NodePgDatabase<typeof schema>,
+    userId: number,
+    aiModel: AI_MODEL
+  ) {
+    return db
+      .update(schema.users)
+      .set({
+        aiModel,
+      })
+      .where(eq(schema.users.id, userId));
+  }
+
+  static setTokenAmount(
+    db: NodePgDatabase<typeof schema>,
+    usedToken: Omit<Token, "id">
+  ) {
+    return db
       .update(schema.tokens)
       .set({
-        amount: tokensAmount,
+        amount: sql`(${schema.tokens.amount}) - ${usedToken.amount}`,
       })
-      .where(eq(schema.tokens.id, id));
+      .where(
+        and(
+          eq(schema.tokens.userId, usedToken.userId),
+          eq(schema.tokens.aiModel, usedToken.aiModel)
+        )
+      );
+  }
+
+  static softDeleteAllMessages(
+    db: NodePgDatabase<typeof schema>,
+    userId: number
+  ) {
+    return db
+      .update(schema.messages)
+      .set({
+        deleted: sql`true`,
+      })
+      .where(eq(schema.messages.userId, userId));
+  }
+
+  static softDeleteMessagesByIds(
+    db: NodePgDatabase<typeof schema>,
+    messageIds: number[]
+  ) {
+    return db
+      .update(schema.messages)
+      .set({
+        deleted: sql`true`,
+      })
+      .where(inArray(schema.messages.id, messageIds));
   }
 }

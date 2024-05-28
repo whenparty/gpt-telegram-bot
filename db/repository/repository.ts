@@ -1,52 +1,12 @@
-import {
-  ExtractTablesWithRelations,
-  InferSelectModel,
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  ne,
-} from "drizzle-orm";
+import { ExtractTablesWithRelations, and, eq } from "drizzle-orm";
 import { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
-import { users } from "../schema/users";
-import { tokens } from "../schema/tokens";
-import * as schema from "../schema";
-import { QueryFactory, UserWithTokens } from "./queryFactory";
+import { QueryFactory } from "./queryFactory";
 import { AI_MODEL } from "./aiModels";
 import { PgTransaction } from "drizzle-orm/pg-core";
+import { IRepository, Message, Token, User, UserWithTokens } from "./types";
+import * as schema from "../schema";
 
-export type User = InferSelectModel<typeof users>;
-export type Token = InferSelectModel<typeof tokens>;
-export type Message = InferSelectModel<(typeof schema)["messages"]>;
-
-export interface IRepository {
-  getUserWithTokens(
-    externalIdentifier: string
-  ): Promise<UserWithTokens | undefined>;
-  createUser(
-    user: Omit<User, "id">,
-    tokens: Omit<Token, "id" | "userId">[]
-  ): Promise<User>;
-  createTokens(
-    userId: number,
-    tokens: Omit<Token, "id" | "userId">[]
-  ): Promise<Token[]>;
-  findUserMessages(userId: number): Promise<Message[]>;
-  findAvailableAiModels(
-    userId: number
-  ): Promise<Pick<Token, "aiModel" | "amount">[]>;
-  switchToModel(userId: number, aiModel: AI_MODEL): Promise<boolean>;
-  saveMessages(
-    userId: number,
-    aiModel: AI_MODEL,
-    messages: any,
-    tokensLeft: number
-  ): Promise<boolean>;
-  softDeleteMessages(userId: number, date: Date): Promise<boolean>;
-}
-
-type Transaction = PgTransaction<
+export type Transaction = PgTransaction<
   NodePgQueryResultHKT,
   typeof schema,
   ExtractTablesWithRelations<typeof schema>
@@ -94,33 +54,12 @@ export class Repository implements RepositoryWithTx {
   }
 
   async findUserMessages(tx: Transaction, userId: number): Promise<Message[]> {
-    return tx.query.messages.findMany({
-      where: and(
-        eq(schema.messages.userId, userId),
-        ne(schema.messages.deleted, true)
-      ),
-      orderBy: asc(schema.messages.sentAt),
-    });
+    return QueryFactory.findUserMessages(tx, userId);
   }
 
   async switchToModel(tx: Transaction, userId: number, aiModel: AI_MODEL) {
-    // set ai model
-    await tx
-      .update(schema.users)
-      .set({
-        aiModel,
-      })
-      .where(eq(schema.users.id, userId));
-
-    // soft delete old messages
-    await tx
-      .update(schema.messages)
-      .set({
-        deleted: true,
-      })
-      .where(eq(schema.messages.userId, userId));
-
-    return true;
+    await QueryFactory.setUserAiModel(tx, userId, aiModel);
+    await QueryFactory.softDeleteAllMessages(tx, userId);
   }
 
   async saveMessages(
@@ -128,50 +67,27 @@ export class Repository implements RepositoryWithTx {
     userId: number,
     aiModel: AI_MODEL,
     messages: Pick<Message, "role" | "text">[],
-    tokenAmount: number
+    amountUsed: number
   ) {
-    await tx.insert(schema.messages).values(
-      messages.map((m) => ({
-        userId,
-        aiModel,
-        role: m.role,
-        text: m.text,
-      }))
-    );
+    await QueryFactory.insertMessages(tx, userId, aiModel, messages);
 
-    await tx
-      .update(schema.tokens)
-      .set({
-        amount: tokenAmount,
-      })
-      .where(
-        and(
-          eq(schema.tokens.userId, userId),
-          eq(schema.tokens.aiModel, aiModel)
-        )
-      );
-
-    return true;
+    await QueryFactory.setTokenAmount(tx, {
+      aiModel,
+      amount: amountUsed,
+      userId,
+    });
   }
 
-  async softDeleteMessages(
-    tx: Transaction,
-    userId: number,
-    date: Date
-  ): Promise<boolean> {
-    const messages = await tx.query.messages.findMany({
-      where: and(
-        eq(schema.messages.userId, userId),
-        ne(schema.messages.deleted, true)
-      ),
-      orderBy: desc(schema.messages.sentAt),
-    });
+  async softDeleteMessages(tx: Transaction, userId: number, date: Date) {
+    const messagesSortedAsc = await QueryFactory.findUserMessages(tx, userId);
+    const messagesSortedDesc = messagesSortedAsc.toReversed();
 
     let currentDate = date;
     const messagesIdToDelete = [];
-    for (let message of messages) {
+    for (let message of messagesSortedDesc) {
       const diffHours =
         Math.abs(currentDate.getTime() - message.sentAt.getTime()) / 3600000;
+
       if (diffHours < 1) {
         currentDate = message.sentAt;
         continue;
@@ -179,14 +95,9 @@ export class Repository implements RepositoryWithTx {
 
       messagesIdToDelete.push(message.id);
     }
+
     if (messagesIdToDelete.length) {
-      await tx
-        .update(schema.messages)
-        .set({
-          deleted: true,
-        })
-        .where(inArray(schema.messages.id, messagesIdToDelete));
+      await QueryFactory.softDeleteMessagesByIds(tx, messagesIdToDelete);
     }
-    return true;
   }
 }
