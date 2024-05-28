@@ -4,6 +4,7 @@ import { AI_MODEL } from "../aiModels";
 import { Client } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "db/schema";
+import { Message, Token } from "../types";
 
 describe("Query Factory", () => {
   const db = drizzle(new Client(), { schema });
@@ -26,6 +27,16 @@ describe("Query Factory", () => {
       db,
       userId
     ).toSQL();
+
+    const expectedParams = [userId];
+    expect(params).toStrictEqual(expectedParams);
+    expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
+  });
+
+  it("findUserMessages", () => {
+    const userId = 1;
+
+    const { sql, params } = QueryFactory.findUserMessages(db, userId).toSQL();
 
     const expectedParams = [userId];
     expect(params).toStrictEqual(expectedParams);
@@ -77,18 +88,95 @@ describe("Query Factory", () => {
     expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
   });
 
-  // it("updateTokenAmount", () => {
-  //   const tokenId = 1;
-  //   const amount = 100;
+  it("insertMessages", () => {
+    const userId = 1;
+    const aiModel = AI_MODEL.OPEN_AI_GPT_4_o;
+    const messages: Pick<Message, "role" | "text">[] = [
+      {
+        role: "user",
+        text: "Hi, how are you?",
+      },
+      {
+        role: "assistant",
+        text: "Hello! I am doing well.",
+      },
+    ];
 
-  //   const { sql, params } = queries
-  //     .updateTokenAmount(db as any, tokenId, amount)
-  //     .toSQL();
+    const { sql, params } = QueryFactory.insertMessages(
+      db,
+      userId,
+      aiModel,
+      messages
+    ).toSQL();
 
-  //   const expectedParams = [amount, tokenId];
-  //   expect(params).toStrictEqual(expectedParams);
-  //   expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
-  // });
+    const expectedParams = [
+      messages[0].role,
+      messages[0].text,
+      userId,
+      aiModel,
+      messages[1].role,
+      messages[1].text,
+      userId,
+      aiModel,
+    ];
+    expect(params).toStrictEqual(expectedParams);
+    expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
+  });
+
+  it("setUserAiModel", () => {
+    const userId = 1;
+    const aiModel = AI_MODEL.OPEN_AI_GPT_4_o;
+
+    const { sql, params } = QueryFactory.setUserAiModel(
+      db,
+      userId,
+      aiModel
+    ).toSQL();
+
+    const expectedParams = [aiModel, userId];
+    expect(params).toStrictEqual(expectedParams);
+    expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
+  });
+
+  it("setTokenAmount", () => {
+    const token: Omit<Token, "id"> = {
+      aiModel: AI_MODEL.OPEN_AI_GPT_4_o,
+      amount: 100,
+      userId: 1,
+    };
+
+    const { sql, params } = QueryFactory.setTokenAmount(db, token).toSQL();
+
+    const expectedParams = [token.amount, token.userId, token.aiModel];
+    expect(params).toStrictEqual(expectedParams);
+    expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
+  });
+
+  it("softDeleteAllMessages", () => {
+    const userId = 1;
+
+    const { sql, params } = QueryFactory.softDeleteAllMessages(
+      db,
+      userId
+    ).toSQL();
+
+    const expectedParams = [userId];
+    expect(params).toStrictEqual(expectedParams);
+    expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
+  });
+
+  it("softDeleteMessagesByIds", () => {
+    const messagesIds = [1, 2, 3];
+
+    const { sql, params } = QueryFactory.softDeleteMessagesByIds(
+      db,
+      messagesIds
+    ).toSQL();
+
+    const expectedParams = messagesIds;
+    expect(params).toStrictEqual(expectedParams);
+    expect(sql).toMatchSnapshot(hintFromParams(expectedParams));
+  });
 });
 
 function hintFromParams(params: unknown[]) {

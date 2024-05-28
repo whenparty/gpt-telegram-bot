@@ -1,8 +1,8 @@
 import { AI_MODEL } from "db/repository/aiModels";
-import { IRepository, Token } from "../repository/repository";
 import fakeMessages from "./fakeMessages";
 import fakeUsers from "./fakeUsers";
 import fakeTokens from "./fakeTokens";
+import { IRepository, Token } from "db/repository/types";
 
 export const fakeRepository: IRepository = {
   getUserWithTokens: async (externalIdentifier) => {
@@ -43,21 +43,18 @@ export const fakeRepository: IRepository = {
   ): Promise<Pick<Token, "aiModel" | "amount">[]> {
     throw new Error("Function not implemented.");
   },
-  switchToModel: function (
-    userId: number,
-    aiModel: AI_MODEL
-  ): Promise<boolean> {
+  switchToModel: function (userId: number, aiModel: AI_MODEL): Promise<void> {
     throw new Error("Function not implemented.");
   },
   saveMessages: function (
     userId: number,
     aiModel: AI_MODEL,
     messages: any,
-    tokensLeft: number
-  ): Promise<boolean> {
+    amountUsed: number
+  ): Promise<void> {
     throw new Error("Function not implemented.");
   },
-  softDeleteMessages: function (userId: number, date: Date): Promise<boolean> {
+  softDeleteMessages: function (userId: number, date: Date): Promise<void> {
     throw new Error("Function not implemented.");
   },
 };

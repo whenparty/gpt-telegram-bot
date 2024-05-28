@@ -1,8 +1,8 @@
 import { Bot, InlineKeyboard } from "grammy";
 import throttle from "lodash.throttle";
-import { IRepository, Message, Token } from "db/repository/repository";
 import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
 import { AIClient } from "./aiClients/aiClient";
+import { IRepository, Message, Token } from "db/repository/types";
 
 const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
   {

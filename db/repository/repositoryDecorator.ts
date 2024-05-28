@@ -1,6 +1,7 @@
 import { Pool } from "pg";
-import { IRepository, Repository } from "./repository";
+import { Repository } from "./repository";
 import { createDB } from "db/connection";
+import { IRepository } from "./types";
 
 export const withTransaction = (
   repository: Repository,
