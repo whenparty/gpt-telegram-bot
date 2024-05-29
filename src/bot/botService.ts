@@ -264,9 +264,7 @@ export class BotService {
     text: string
   ) {
     try {
-      await this.bot.api.editMessageText(chatId, messageId, text, {
-        parse_mode: "MarkdownV2",
-      });
+      await this.bot.api.editMessageText(chatId, messageId, text);
     } catch (e) {
       console.log(e);
     }

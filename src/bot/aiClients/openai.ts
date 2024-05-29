@@ -31,7 +31,7 @@ class OpenAIClient implements AIClient {
     let usedTokens = 0;
     const stream = await this.openai.chat.completions.create({
       model,
-      messages: [SYSTEM_MESSAGE, ...messages],
+      messages,
       stream: true,
       stream_options: { include_usage: true },
     });

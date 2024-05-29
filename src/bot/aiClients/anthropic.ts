@@ -30,7 +30,6 @@ class AnthropicClient implements AIClient {
   }): Promise<void> {
     this.anthropic.messages
       .stream({
-        system: OUTPUT_TEXT_STYLE,
         model,
         messages,
         max_tokens: 1024,
