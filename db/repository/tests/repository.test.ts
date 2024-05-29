@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { Repository, Transaction } from "../repository";
 import { QueryFactory } from "../queryFactory";
-import { User, Token } from "../types";
-import { AI_MODEL } from "../aiModels";
+import fakeUsers from "db/fakes/fakeUsers";
+import fakeTokens from "db/fakes/fakeTokens";
 
 describe("Repository", async () => {
   const repository = new Repository();
@@ -36,28 +36,17 @@ describe("Repository", async () => {
   });
 
   it("calls insertUser and insertTokens from QueryFactory for repository.createUser", async () => {
-    const userId = 1;
-    const user: Omit<User, "id"> = {
-      externalIdentifier: "externalIdentifier",
-      name: "name",
-      aiModel: AI_MODEL.OPEN_AI_GPT_4_o,
-    };
-
-    const tokens: Pick<Token, "aiModel" | "amount">[] = [
-      {
-        aiModel: AI_MODEL.OPEN_AI_GPT_4_o,
-        amount: 1,
-      },
-      {
-        aiModel: AI_MODEL.CLAUDE_3_OPUS,
-        amount: 2,
-      },
-    ];
+    const { id: userId, ...user } = fakeUsers[0];
+    const tokens = fakeTokens.slice(0, 2).map((token) => ({
+      aiModel: token.aiModel,
+      amount: token.amount,
+    }));
 
     QueryFactory.insertUser = mock(() => [{ ...user, id: userId }] as any);
     QueryFactory.insertTokens = mock();
 
     await repository.createUser(tx, user, tokens);
+
     expect(QueryFactory.insertUser).toHaveBeenCalledTimes(1);
     expect(QueryFactory.insertUser).toHaveBeenCalledWith(tx, user);
     expect(QueryFactory.insertTokens).toHaveBeenCalledTimes(1);

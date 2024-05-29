@@ -30,8 +30,8 @@ export interface IRepository {
   saveMessages(
     userId: number,
     aiModel: AI_MODEL,
-    messages: any,
-    amountUsed: number
+    messages: Pick<Message, "role" | "text">[],
+    amountUsed?: number
   ): Promise<void>;
   softDeleteMessages(userId: number, date: Date): Promise<void>;
 }

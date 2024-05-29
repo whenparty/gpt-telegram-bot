@@ -1,6 +1,5 @@
 import { AI_MODEL } from "db/repository/aiModels";
-import { users } from "../schema/users";
-import { type InferSelectModel } from "drizzle-orm";
+import { User } from "db/repository/types";
 
 export default [
   {
@@ -9,4 +8,4 @@ export default [
     externalIdentifier: "1",
     aiModel: AI_MODEL.CLAUDE_3_HAIKU,
   },
-] as InferSelectModel<typeof users>[];
+] satisfies User[];
