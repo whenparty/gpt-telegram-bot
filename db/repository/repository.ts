@@ -67,15 +67,17 @@ export class Repository implements RepositoryWithTx {
     userId: number,
     aiModel: AI_MODEL,
     messages: Pick<Message, "role" | "text">[],
-    amountUsed: number
+    amountUsed: number = 0
   ) {
     await QueryFactory.insertMessages(tx, userId, aiModel, messages);
 
-    await QueryFactory.setTokenAmount(tx, {
-      aiModel,
-      amount: amountUsed,
-      userId,
-    });
+    if (amountUsed) {
+      await QueryFactory.setTokenAmount(tx, {
+        aiModel,
+        amount: amountUsed,
+        userId,
+      });
+    }
   }
 
   async softDeleteMessages(tx: Transaction, userId: number, date: Date) {

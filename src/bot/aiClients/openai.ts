@@ -1,10 +1,11 @@
 import OpenAI from "openai";
-import {
-  AIClient,
-  AIClientMessage,
-  OnFinalMessage,
-  OnUpdate,
-} from "./aiClient";
+import { AIClient, AIClientMessage, OnFinalMessage, OnUpdate } from "./types";
+import { OUTPUT_TEXT_STYLE } from "./systemMessages";
+
+const SYSTEM_MESSAGE = {
+  role: "system" as const,
+  content: OUTPUT_TEXT_STYLE,
+};
 
 class OpenAIClient implements AIClient {
   private openai: OpenAI;
@@ -30,7 +31,7 @@ class OpenAIClient implements AIClient {
     let usedTokens = 0;
     const stream = await this.openai.chat.completions.create({
       model,
-      messages,
+      messages: [SYSTEM_MESSAGE, ...messages],
       stream: true,
       stream_options: { include_usage: true },
     });

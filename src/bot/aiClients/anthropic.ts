@@ -1,12 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import {
-  AIClient,
-  AIClientMessage,
-  OnFinalMessage,
-  OnUpdate,
-} from "./aiClient";
+import { AIClient, AIClientMessage, OnFinalMessage, OnUpdate } from "./types";
 import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
 import { Message } from "@anthropic-ai/sdk/resources";
+import { OUTPUT_TEXT_STYLE } from "./systemMessages";
 
 class AnthropicClient implements AIClient {
   private anthropic: Anthropic;
@@ -34,6 +30,7 @@ class AnthropicClient implements AIClient {
   }): Promise<void> {
     this.anthropic.messages
       .stream({
+        system: OUTPUT_TEXT_STYLE,
         model,
         messages,
         max_tokens: 1024,
