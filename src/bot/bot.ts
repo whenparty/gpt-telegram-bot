@@ -1,6 +1,9 @@
-import { Bot } from "grammy";
+import { I18nFlavor } from "@grammyjs/i18n";
+import { Bot, Context } from "grammy";
 
-export const bot = new Bot(process.env["TELEGRAM_BOT_API_TOKEN"]!, {
+export type BotContext = Context & I18nFlavor;
+
+export const bot = new Bot<BotContext>(process.env["TELEGRAM_BOT_API_TOKEN"]!, {
   botInfo: {
     id: 7018007874,
     is_bot: true,
