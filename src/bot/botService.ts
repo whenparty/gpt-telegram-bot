@@ -2,7 +2,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import throttle from "lodash.throttle";
 import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
 import { AIClient } from "./aiClients/types";
-import { IRepository, Message, Token } from "db/repository/types";
+import { IRepository, Token } from "db/repository/types";
 
 const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
   {
@@ -22,13 +22,13 @@ export class BotService {
 
   setCommands() {
     this.bot.api.setMyCommands([
-      //   { command: "selectmodel", description: "Select an AI model" },
+      { command: "setmodel", description: "Select an AI model" },
       { command: "newchat", description: "Start a new chat" },
     ]);
 
     this.bot.api.setMyCommands(
       [
-        //   { command: "selectmodel", description: "Выберите ИИ" },
+        { command: "setmodel", description: "Выберите модель ИИ" },
         { command: "newchat", description: "Начать новый чат" },
       ],
       { language_code: "ru" }
@@ -42,14 +42,14 @@ export class BotService {
         return;
       }
 
-      const userId = from.id.toString();
-      let user = await this.repository.getUserWithTokens(userId);
+      const externalUserId = from.id.toString();
+      let user = await this.repository.getUserWithTokens(externalUserId);
 
       if (!user) {
         const tokens = DEFAULT_TOKENS;
         const newUser = await this.repository.createUser(
           {
-            externalIdentifier: from.id.toString(),
+            externalIdentifier: externalUserId,
             aiModel: AI_MODEL.CLAUDE_3_HAIKU,
             name: [from.username, from.first_name, from.last_name]
               .filter(Boolean)
@@ -64,8 +64,29 @@ export class BotService {
         };
       }
 
-      if (!user.tokens.length) {
-        await this.repository.createTokens(user.id, DEFAULT_TOKENS);
+      const inlineKeyboard = new InlineKeyboard();
+      user.tokens.forEach((token) => {
+        const modelTokens = token.amount > 1e6 ? "not limited" : token.amount;
+        inlineKeyboard
+          .text(`${token.aiModel} / tokens: ${modelTokens}`, token.aiModel)
+          .row();
+      });
+      // Send the menu:
+      await ctx.reply("Select the gpt model:", {
+        reply_markup: inlineKeyboard,
+      });
+    });
+
+    this.bot.command("setmodel", async (ctx) => {
+      const { from } = ctx;
+      if (!from || from.is_bot) {
+        return;
+      }
+
+      const externalUserId = from.id.toString();
+      const user = await this.repository.getUserWithTokens(externalUserId);
+      if (!user) {
+        return;
       }
 
       const inlineKeyboard = new InlineKeyboard();
@@ -76,7 +97,7 @@ export class BotService {
           .row();
       });
       // Send the menu:
-      await ctx.reply("Select the gtp model:", {
+      await ctx.reply("Select the gpt model:", {
         reply_markup: inlineKeyboard,
       });
     });
@@ -87,7 +108,7 @@ export class BotService {
         return;
       }
 
-      const externalUserId = from.id.toString() ?? "";
+      const externalUserId = from.id.toString();
       const user = await this.repository.getUserWithTokens(externalUserId);
       if (!user) {
         throw new Error(`There is no user with id: ${externalUserId}`);
