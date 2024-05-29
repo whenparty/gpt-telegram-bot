@@ -1,8 +1,14 @@
 import { Bot, InlineKeyboard } from "grammy";
 import throttle from "lodash.throttle";
-import { AI_MODEL, AI_MODEL_API_VERSION } from "db/repository/aiModels";
+import {
+  AI_MODEL,
+  AI_MODEL_API_VERSION,
+  AI_MODEL_DISPLAY_NAME,
+} from "db/repository/aiModels";
 import { AIClient } from "./aiClients/types";
 import { IRepository, Token } from "db/repository/types";
+import { BotContext } from "./bot";
+import { I18n } from "@grammyjs/i18n";
 
 const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
   {
@@ -13,7 +19,7 @@ const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
 
 export class BotService {
   constructor(
-    readonly bot: Bot,
+    readonly bot: Bot<BotContext>,
     readonly aiClients: Record<AI_MODEL, AIClient>,
     readonly repository: IRepository
   ) {
@@ -36,6 +42,11 @@ export class BotService {
   }
 
   private subscribeOnUpdate() {
+    const i18n = new I18n<BotContext>({
+      defaultLocale: "en",
+      directory: "src/bot/locales",
+    });
+    this.bot.use(i18n);
     this.bot.command("start", async (ctx) => {
       const { from } = ctx;
       if (!from || from.is_bot) {
@@ -66,13 +77,18 @@ export class BotService {
 
       const inlineKeyboard = new InlineKeyboard();
       user.tokens.forEach((token) => {
-        const modelTokens = token.amount > 1e6 ? "not limited" : token.amount;
-        inlineKeyboard
-          .text(`${token.aiModel} / tokens: ${modelTokens}`, token.aiModel)
-          .row();
+        const tokenAmount =
+          token.amount > 1e6 ? ctx.t("not-limited") : token.amount;
+
+        const modelDisplayText = ctx.t("set-ai-model-option", {
+          modelDisplayName: AI_MODEL_DISPLAY_NAME[token.aiModel],
+          tokenAmount,
+        });
+
+        inlineKeyboard.text(modelDisplayText, token.aiModel).row();
       });
       // Send the menu:
-      await ctx.reply("Select the gpt model:", {
+      await ctx.reply(ctx.t("select-model"), {
         reply_markup: inlineKeyboard,
       });
     });
@@ -91,13 +107,18 @@ export class BotService {
 
       const inlineKeyboard = new InlineKeyboard();
       user.tokens.forEach((token) => {
-        const modelTokens = token.amount > 1e6 ? "not limited" : token.amount;
-        inlineKeyboard
-          .text(`${token.aiModel} / tokens: ${modelTokens}`, token.aiModel)
-          .row();
+        const tokenAmount =
+          token.amount > 1e6 ? ctx.t("not-limited") : token.amount;
+
+        const modelDisplayText = ctx.t("set-ai-model-option", {
+          modelDisplayName: AI_MODEL_DISPLAY_NAME[token.aiModel],
+          tokenAmount,
+        });
+
+        inlineKeyboard.text(modelDisplayText, token.aiModel).row();
       });
       // Send the menu:
-      await ctx.reply("Select the gpt model:", {
+      await ctx.reply(ctx.t("select-model"), {
         reply_markup: inlineKeyboard,
       });
     });
@@ -117,7 +138,7 @@ export class BotService {
       const nextHourDate = new Date();
       nextHourDate.setHours(nextHourDate.getHours() + 2);
       await this.repository.softDeleteMessages(user.id, nextHourDate);
-      await ctx.reply(`Chat history cleared`);
+      await ctx.reply(ctx.t("chat-cleared"));
     });
 
     this.bot.on("callback_query:data", async (ctx) => {
@@ -175,7 +196,7 @@ export class BotService {
       if (!availableTokens || availableTokens.amount <= 0) {
         await this.bot.api.sendMessage(
           chatId,
-          `Unfortunately you do not have tokens for ${user.aiModel}`
+          ctx.t("no-tokens-error", { aiModel: user.aiModel })
         );
         return;
       }

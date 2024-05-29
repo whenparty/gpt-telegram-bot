@@ -11,3 +11,10 @@ export const AI_MODEL_API_VERSION = {
   [AI_MODEL.OPEN_AI_GPT_3_5]: "gpt-3.5-turbo",
   [AI_MODEL.OPEN_AI_GPT_4_o]: "gpt-4o",
 };
+
+export const AI_MODEL_DISPLAY_NAME = {
+  [AI_MODEL.CLAUDE_3_HAIKU]: "Claude 3 Haiku",
+  [AI_MODEL.CLAUDE_3_OPUS]: "Claude 3 Opus",
+  [AI_MODEL.OPEN_AI_GPT_3_5]: "Chat GPT 3.5-turbo",
+  [AI_MODEL.OPEN_AI_GPT_4_o]: "Chat GPT 4o",
+};
