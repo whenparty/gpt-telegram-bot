@@ -9,6 +9,7 @@ import { AIClient } from "./aiClients/types";
 import { IRepository, Token } from "db/repository/types";
 import { BotContext } from "./bot";
 import { I18n } from "@grammyjs/i18n";
+import * as Sentry from "@sentry/bun";
 
 const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
   {
@@ -287,7 +288,7 @@ export class BotService {
     try {
       await this.bot.api.editMessageText(chatId, messageId, text);
     } catch (e) {
-      console.log(e);
+      Sentry.captureException(e);
     }
   }
 }

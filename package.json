@@ -16,6 +16,7 @@
     "@elysiajs/stream": "^1.0.2",
     "@grammyjs/i18n": "^1.0.2",
     "@grammyjs/menu": "^1.2.1",
+    "@sentry/bun": "^8.7.0",
     "drizzle-orm": "^0.30.10",
     "elysia": "latest",
     "grammy": "^1.22.4",
