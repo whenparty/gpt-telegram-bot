@@ -6,10 +6,11 @@ import {
   AI_MODEL_DISPLAY_NAME,
 } from "db/repository/aiModels";
 import { AIClient } from "./aiClients/types";
-import { IRepository, Token } from "db/repository/types";
+import { IRepository, Token, UserWithTokens } from "db/repository/types";
 import { BotContext } from "./bot";
 import { I18n } from "@grammyjs/i18n";
 import * as Sentry from "@sentry/bun";
+import { User as TgUser } from "@grammyjs/types";
 
 const DEFAULT_TOKENS: Pick<Token, "aiModel" | "amount">[] = [
   {
@@ -48,17 +49,44 @@ export class BotService {
       directory: "src/bot/locales",
     });
     this.bot.use(i18n);
-    this.bot.command("start", async (ctx) => {
+
+    async function renderSelectAiModelMenu(
+      ctx: BotContext,
+      getUser: (from: TgUser) => Promise<UserWithTokens>
+    ) {
       const { from } = ctx;
-      if (!from || from.is_bot) {
-        return;
+      if (!from) {
+        throw new Error("Can't get user from context");
       }
 
-      const externalUserId = from.id.toString();
-      let user = await this.repository.getUserWithTokens(externalUserId);
+      const user = await getUser(from);
 
-      if (!user) {
-        const tokens = DEFAULT_TOKENS;
+      const inlineKeyboard = new InlineKeyboard();
+      user.tokens.forEach((token) => {
+        const tokenAmount =
+          token.amount > 1e6 ? ctx.t("not-limited") : token.amount;
+
+        const modelDisplayText = ctx.t("set-ai-model-option", {
+          modelDisplayName: AI_MODEL_DISPLAY_NAME[token.aiModel],
+          tokenAmount,
+        });
+
+        inlineKeyboard.text(modelDisplayText, token.aiModel).row();
+      });
+      // Send the menu:
+      await ctx.reply(ctx.t("select-model"), {
+        reply_markup: inlineKeyboard,
+      });
+    }
+
+    this.bot.command("start", async (ctx) => {
+      const getOrCreateUser = async (from: TgUser) => {
+        const externalUserId = from.id.toString();
+        const user = await this.repository.getUserWithTokens(externalUserId);
+        if (user) {
+          return user;
+        }
+
         const newUser = await this.repository.createUser(
           {
             externalIdentifier: externalUserId,
@@ -70,64 +98,29 @@ export class BotService {
           DEFAULT_TOKENS
         );
 
-        user = {
-          ...newUser,
-          tokens: tokens as Token[],
-        };
-      }
+        return newUser;
+      };
 
-      const inlineKeyboard = new InlineKeyboard();
-      user.tokens.forEach((token) => {
-        const tokenAmount =
-          token.amount > 1e6 ? ctx.t("not-limited") : token.amount;
-
-        const modelDisplayText = ctx.t("set-ai-model-option", {
-          modelDisplayName: AI_MODEL_DISPLAY_NAME[token.aiModel],
-          tokenAmount,
-        });
-
-        inlineKeyboard.text(modelDisplayText, token.aiModel).row();
-      });
-      // Send the menu:
-      await ctx.reply(ctx.t("select-model"), {
-        reply_markup: inlineKeyboard,
-      });
+      await renderSelectAiModelMenu(ctx, getOrCreateUser);
     });
 
     this.bot.command("setmodel", async (ctx) => {
-      const { from } = ctx;
-      if (!from || from.is_bot) {
-        return;
-      }
+      const getUser = async (from: TgUser) => {
+        const externalUserId = from.id.toString();
+        const user = await this.repository.getUserWithTokens(externalUserId);
+        if (!user) {
+          throw new Error(`There is no user with id: ${externalUserId}`);
+        }
+        return user;
+      };
 
-      const externalUserId = from.id.toString();
-      const user = await this.repository.getUserWithTokens(externalUserId);
-      if (!user) {
-        return;
-      }
-
-      const inlineKeyboard = new InlineKeyboard();
-      user.tokens.forEach((token) => {
-        const tokenAmount =
-          token.amount > 1e6 ? ctx.t("not-limited") : token.amount;
-
-        const modelDisplayText = ctx.t("set-ai-model-option", {
-          modelDisplayName: AI_MODEL_DISPLAY_NAME[token.aiModel],
-          tokenAmount,
-        });
-
-        inlineKeyboard.text(modelDisplayText, token.aiModel).row();
-      });
-      // Send the menu:
-      await ctx.reply(ctx.t("select-model"), {
-        reply_markup: inlineKeyboard,
-      });
+      await renderSelectAiModelMenu(ctx, getUser);
     });
 
     this.bot.command("newchat", async (ctx) => {
       const { from } = ctx;
-      if (!from || from.is_bot) {
-        return;
+      if (!from) {
+        throw new Error("Can't get user from context");
       }
 
       const externalUserId = from.id.toString();
@@ -152,7 +145,12 @@ export class BotService {
 
       if (user.aiModel === selectedAiModel) {
         await ctx.editMessageText(
-          `The current model is already ${selectedAiModel}`,
+          [
+            ctx.t("select-model"),
+            ctx.t("already-selected", {
+              modelDisplayName: AI_MODEL_DISPLAY_NAME[selectedAiModel],
+            }),
+          ].join("\n"),
           {
             reply_markup: undefined,
           }
@@ -165,14 +163,22 @@ export class BotService {
       );
       if (!availableTokens || availableTokens.amount <= 0) {
         await ctx.answerCallbackQuery({
-          text: `Unfortunately you do not have tokens for ${selectedAiModel}. Please select another AI model.`,
+          text: ctx.t("no-tokens-error", {
+            modelDisplayName: AI_MODEL_DISPLAY_NAME[selectedAiModel],
+          }),
         });
+        return;
       }
 
       await this.repository.switchToModel(user.id, selectedAiModel);
 
       await ctx.editMessageText(
-        `Select the gtp model:\nYou chose ${selectedAiModel}`,
+        [
+          ctx.t("select-model"),
+          ctx.t("you-chose", {
+            modelDisplayName: AI_MODEL_DISPLAY_NAME[selectedAiModel],
+          }),
+        ].join("\n"),
         {
           reply_markup: undefined,
         }
@@ -195,10 +201,12 @@ export class BotService {
         (token) => token.aiModel === user.aiModel
       );
       if (!availableTokens || availableTokens.amount <= 0) {
-        await this.bot.api.sendMessage(
-          chatId,
-          ctx.t("no-tokens-error", { aiModel: user.aiModel })
+        await ctx.reply(
+          ctx.t("no-tokens-error", {
+            modelDisplayName: AI_MODEL_DISPLAY_NAME[user.aiModel],
+          })
         );
+
         return;
       }
 
@@ -206,7 +214,7 @@ export class BotService {
 
       let answer: string = "";
 
-      const responseMessage = await this.bot.api.sendMessage(chatId, "...");
+      const responseMessage = await ctx.reply("...");
       const responseMessageId = responseMessage.message_id;
 
       const savedMessages = await this.repository.findUserMessages(user.id);

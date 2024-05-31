@@ -2,7 +2,7 @@ import { AI_MODEL } from "db/repository/aiModels";
 import fakeMessages from "./fakeMessages";
 import fakeUsers from "./fakeUsers";
 import fakeTokens from "./fakeTokens";
-import { IRepository, Token } from "db/repository/types";
+import { IRepository, Token, UserWithTokens } from "db/repository/types";
 
 export const fakeRepository: IRepository = {
   getUserWithTokens: async (externalIdentifier) => {
@@ -24,12 +24,7 @@ export const fakeRepository: IRepository = {
       "id"
     >,
     tokens: Omit<Token, "id" | "userId">[]
-  ): Promise<{
-    id: number;
-    externalIdentifier: string;
-    name: string;
-    aiModel: AI_MODEL;
-  }> {
+  ): Promise<UserWithTokens> {
     throw new Error("Function not implemented.");
   },
   createTokens: function (
