@@ -48,6 +48,7 @@ export class BotService {
       directory: "src/bot/locales",
     });
     this.bot.use(i18n);
+
     this.bot.command("start", async (ctx) => {
       const { from } = ctx;
       if (!from || from.is_bot) {
@@ -126,8 +127,8 @@ export class BotService {
 
     this.bot.command("newchat", async (ctx) => {
       const { from } = ctx;
-      if (!from || from.is_bot) {
-        return;
+      if (!from) {
+        throw new Error("Can't get user from context");
       }
 
       const externalUserId = from.id.toString();
@@ -152,7 +153,12 @@ export class BotService {
 
       if (user.aiModel === selectedAiModel) {
         await ctx.editMessageText(
-          `The current model is already ${selectedAiModel}`,
+          [
+            ctx.t("select-model"),
+            ctx.t("already-selected", {
+              modelDisplayName: AI_MODEL_DISPLAY_NAME[selectedAiModel],
+            }),
+          ].join("\n"),
           {
             reply_markup: undefined,
           }
@@ -165,14 +171,22 @@ export class BotService {
       );
       if (!availableTokens || availableTokens.amount <= 0) {
         await ctx.answerCallbackQuery({
-          text: `Unfortunately you do not have tokens for ${selectedAiModel}. Please select another AI model.`,
+          text: ctx.t("no-tokens-error", {
+            modelDisplayName: AI_MODEL_DISPLAY_NAME[selectedAiModel],
+          }),
         });
+        return;
       }
 
       await this.repository.switchToModel(user.id, selectedAiModel);
 
       await ctx.editMessageText(
-        `Select the gtp model:\nYou chose ${selectedAiModel}`,
+        [
+          ctx.t("select-model"),
+          ctx.t("you-chose", {
+            modelDisplayName: AI_MODEL_DISPLAY_NAME[selectedAiModel],
+          }),
+        ].join("\n"),
         {
           reply_markup: undefined,
         }
@@ -195,10 +209,12 @@ export class BotService {
         (token) => token.aiModel === user.aiModel
       );
       if (!availableTokens || availableTokens.amount <= 0) {
-        await this.bot.api.sendMessage(
-          chatId,
-          ctx.t("no-tokens-error", { aiModel: user.aiModel })
+        await ctx.reply(
+          ctx.t("no-tokens-error", {
+            modelDisplayName: AI_MODEL_DISPLAY_NAME[user.aiModel],
+          })
         );
+
         return;
       }
 
@@ -206,7 +222,7 @@ export class BotService {
 
       let answer: string = "";
 
-      const responseMessage = await this.bot.api.sendMessage(chatId, "...");
+      const responseMessage = await ctx.reply("...");
       const responseMessageId = responseMessage.message_id;
 
       const savedMessages = await this.repository.findUserMessages(user.id);
