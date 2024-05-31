@@ -17,7 +17,7 @@ export interface IRepository {
   createUser(
     user: Omit<User, "id">,
     tokens: Omit<Token, "id" | "userId">[]
-  ): Promise<User>;
+  ): Promise<UserWithTokens>;
   createTokens(
     userId: number,
     tokens: Omit<Token, "id" | "userId">[]

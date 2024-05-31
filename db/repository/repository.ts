@@ -37,12 +37,12 @@ export class Repository implements RepositoryWithTx {
     tx: Transaction,
     user: Omit<User, "id">,
     tokens: { aiModel: AI_MODEL; amount: number }[]
-  ): Promise<User> {
+  ): Promise<UserWithTokens> {
     const insertedUsers = await QueryFactory.insertUser(tx, user);
     const newUser = insertedUsers[0];
 
-    await QueryFactory.insertTokens(tx, newUser.id, tokens);
-    return newUser;
+    const newTokens = await QueryFactory.insertTokens(tx, newUser.id, tokens);
+    return { ...newUser, tokens: newTokens };
   }
 
   async createTokens(
