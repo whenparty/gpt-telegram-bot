@@ -4,7 +4,8 @@ import { AI_MODEL } from "../aiModels";
 import { Client } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "db/schema";
-import { Message, Token } from "../types";
+import { NewMessage, Token } from "../types";
+import fakeMessages from "db/fakes/fakeMessages";
 
 describe("Query Factory", () => {
   const db = drizzle(new Client(), { schema });
@@ -89,35 +90,27 @@ describe("Query Factory", () => {
   });
 
   it("insertMessages", () => {
-    const userId = 1;
-    const aiModel = AI_MODEL.OPEN_AI_GPT_4_o;
-    const messages: Pick<Message, "role" | "text">[] = [
-      {
-        role: "user",
-        text: "Hi, how are you?",
-      },
-      {
-        role: "assistant",
-        text: "Hello! I am doing well.",
-      },
-    ];
+    const messages: NewMessage[] = fakeMessages.map((message) => ({
+      aiModel: message.aiModel,
+      role: message.role,
+      text: message.text,
+      userId: message.userId,
+      usedTokens: message.usedTokens,
+    }));
 
-    const { sql, params } = QueryFactory.insertMessages(
-      db,
-      userId,
-      aiModel,
-      messages
-    ).toSQL();
+    const { sql, params } = QueryFactory.insertMessages(db, messages).toSQL();
 
     const expectedParams = [
       messages[0].role,
       messages[0].text,
-      userId,
-      aiModel,
+      messages[0].userId,
+      messages[0].aiModel,
+      messages[0].usedTokens,
       messages[1].role,
       messages[1].text,
-      userId,
-      aiModel,
+      messages[1].userId,
+      messages[1].aiModel,
+      messages[1].usedTokens,
     ];
     expect(params).toStrictEqual(expectedParams);
     expect(sql).toMatchSnapshot(hintFromParams(expectedParams));

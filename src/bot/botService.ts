@@ -6,7 +6,12 @@ import {
   AI_MODEL_DISPLAY_NAME,
 } from "db/repository/aiModels";
 import { AIClient } from "./aiClients/types";
-import { IRepository, Token, UserWithTokens } from "db/repository/types";
+import {
+  IRepository,
+  Message,
+  Token,
+  UserWithTokens,
+} from "db/repository/types";
 import { BotContext } from "./bot";
 import { I18n } from "@grammyjs/i18n";
 import * as Sentry from "@sentry/bun";
@@ -219,12 +224,14 @@ export class BotService {
 
       const savedMessages = await this.repository.findUserMessages(user.id);
 
-      const userMessage = { role: "user" as const, text: ctx.message.text };
-      const saveUserMessagePromise = this.repository.saveMessages(
-        user.id,
-        user.aiModel,
-        [userMessage]
-      );
+      const userMessage: Omit<Message, "id" | "deleted" | "sentAt"> = {
+        role: "user" as const,
+        text: ctx.message.text,
+        aiModel: user.aiModel,
+        userId: user.id,
+        usedTokens: null,
+      };
+      const saveUserMessagePromise = this.repository.saveMessage(userMessage);
 
       const dialog = [...savedMessages, userMessage].map((m) => ({
         role: m.role,
@@ -248,15 +255,18 @@ export class BotService {
         onFinalMessage: async (text, usedTokens) => {
           clearInterval(typingChatActionIntervalId);
 
-          const assistantResponse = { role: "assistant" as const, text };
+          const assistantResponse = {
+            role: "assistant" as const,
+            text,
+            aiModel: user.aiModel,
+            userId: user.id,
+            usedTokens: usedTokens,
+          };
 
-          await saveUserMessagePromise;
-          await this.repository.saveMessages(
-            user.id,
-            user.aiModel,
-            [assistantResponse],
-            usedTokens
-          );
+          await Promise.all([
+            saveUserMessagePromise,
+            this.repository.saveMessage(assistantResponse),
+          ]);
 
           console.log("end", text);
           console.log("tokens", usedTokens);
