@@ -18,6 +18,7 @@ describe("Test Controller", () => {
         sentAt: "2024-04-25T13:21:12.000Z",
         deleted: false,
         aiModel: "claude-3-opus",
+        usedTokens: null,
       },
       {
         id: 2,
@@ -27,6 +28,7 @@ describe("Test Controller", () => {
         sentAt: "2024-04-25T13:21:13.960Z",
         deleted: false,
         aiModel: "claude-3-opus",
+        usedTokens: 25,
       },
     ]);
   });

@@ -3,7 +3,7 @@ import * as schema from "../schema";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { AI_MODEL } from "./aiModels";
 import { PgRelationalQuery } from "drizzle-orm/pg-core/query-builders/query";
-import { Message, Token, User, UserWithTokens } from "./types";
+import { Message, NewMessage, Token, User, UserWithTokens } from "./types";
 
 export class QueryFactory {
   static getUserWithTokens(
@@ -66,19 +66,9 @@ export class QueryFactory {
 
   static insertMessages(
     db: NodePgDatabase<typeof schema>,
-    userId: number,
-    aiModel: AI_MODEL,
-    messages: Pick<Message, "role" | "text">[]
+    messages: NewMessage[]
   ) {
-    const messageToAdd: Omit<Message, "id" | "sentAt" | "deleted">[] =
-      messages.map((message) => ({
-        aiModel,
-        userId,
-        role: message.role,
-        text: message.text,
-      }));
-
-    return db.insert(schema.messages).values(messageToAdd);
+    return db.insert(schema.messages).values(messages);
   }
 
   static setUserAiModel(

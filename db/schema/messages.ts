@@ -26,6 +26,7 @@ export const messages = pgTable(
         onUpdate: "restrict",
       }),
     aiModel: aiModelEnum("ai_model").notNull(),
+    usedTokens: integer("used_tokens"),
   },
   (table) => {
     return {

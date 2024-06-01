@@ -3,7 +3,14 @@ import { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import { QueryFactory } from "./queryFactory";
 import { AI_MODEL } from "./aiModels";
 import { PgTransaction } from "drizzle-orm/pg-core";
-import { IRepository, Message, Token, User, UserWithTokens } from "./types";
+import {
+  IRepository,
+  Message,
+  NewMessage,
+  Token,
+  User,
+  UserWithTokens,
+} from "./types";
 import * as schema from "../schema";
 
 export type Transaction = PgTransaction<
@@ -62,20 +69,14 @@ export class Repository implements RepositoryWithTx {
     await QueryFactory.softDeleteAllMessages(tx, userId);
   }
 
-  async saveMessages(
-    tx: Transaction,
-    userId: number,
-    aiModel: AI_MODEL,
-    messages: Pick<Message, "role" | "text">[],
-    amountUsed: number = 0
-  ) {
-    await QueryFactory.insertMessages(tx, userId, aiModel, messages);
+  async saveMessage(tx: Transaction, message: NewMessage) {
+    await QueryFactory.insertMessages(tx, [message]);
 
-    if (amountUsed) {
+    if (message.usedTokens) {
       await QueryFactory.setTokenAmount(tx, {
-        aiModel,
-        amount: amountUsed,
-        userId,
+        aiModel: message.aiModel,
+        amount: message.usedTokens,
+        userId: message.userId,
       });
     }
   }

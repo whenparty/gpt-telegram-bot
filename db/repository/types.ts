@@ -6,6 +6,7 @@ export type User = InferSelectModel<typeof schema.users>;
 export type Token = InferSelectModel<typeof schema.tokens>;
 export type Message = InferSelectModel<typeof schema.messages>;
 
+export type NewMessage = Omit<Message, "id" | "deleted" | "sentAt">;
 export type UserWithTokens = User & {
   tokens: Token[];
 };
@@ -27,11 +28,6 @@ export interface IRepository {
     userId: number
   ): Promise<Pick<Token, "aiModel" | "amount">[]>;
   switchToModel(userId: number, aiModel: AI_MODEL): Promise<void>;
-  saveMessages(
-    userId: number,
-    aiModel: AI_MODEL,
-    messages: Pick<Message, "role" | "text">[],
-    amountUsed?: number
-  ): Promise<void>;
+  saveMessage(message: NewMessage): Promise<void>;
   softDeleteMessages(userId: number, date: Date): Promise<void>;
 }
